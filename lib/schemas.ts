@@ -8,6 +8,14 @@ export const contactCreateSchema = z.object({
   cashapp: z.string().optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
 });
 
+export const contactUpdateSchema = z.object({
+  name: z.string().min(1).optional(),
+  email: z.string().email().optional().or(z.literal("")).transform((v) => (v === undefined ? undefined : v ? v : undefined)),
+  phone: z.string().optional().or(z.literal("")).transform((v) => (v === undefined ? undefined : v ? v : undefined)),
+  venmo: z.string().optional().or(z.literal("")).transform((v) => (v === undefined ? undefined : v ? v : undefined)),
+  cashapp: z.string().optional().or(z.literal("")).transform((v) => (v === undefined ? undefined : v ? v : undefined)),
+});
+
 export const billCreateSchema = z.object({
   title: z.string().min(1),
   venue: z.string().optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
@@ -41,6 +49,7 @@ export const shareUpsertSchema = z.object({
 });
 
 export type ContactCreateInput = z.infer<typeof contactCreateSchema>;
+export type ContactUpdateInput = z.infer<typeof contactUpdateSchema>;
 export type BillCreateInput = z.infer<typeof billCreateSchema>;
 export type ItemCreateInput = z.infer<typeof itemCreateSchema>;
 export type ItemUpdateInput = z.infer<typeof itemUpdateSchema>;

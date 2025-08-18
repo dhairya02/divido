@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import AddContactDialog from "@/components/AddContactDialog";
+import EditContactDialog from "@/components/EditContactDialog";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 type Contact = {
   id: string;
@@ -16,6 +18,9 @@ export default function ContactsPage() {
   const [form, setForm] = useState<Partial<Contact>>({ name: "" });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sortBy, setSortBy] = useState<"first" | "last">("first");
+  const [editOpen, setEditOpen] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const load = async () => {
     const res = await fetch("/api/contacts");
@@ -59,8 +64,18 @@ export default function ContactsPage() {
           <details key={c.id} className="group">
             <summary className="flex items-center justify-between px-4 py-3 cursor-pointer select-none">
               <span className="font-medium">{c.name}</span>
-              <span className="text-xs text-gray-500 group-open:hidden">Tap to view</span>
-              <span className="text-xs text-gray-500 hidden group-open:inline">Hide</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedContact(c); setEditOpen(true); }}
+                >Edit</button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteId(c.id); }}
+                >Delete</button>
+              </div>
             </summary>
             <div className="px-4 pb-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
               {c.email && <div><span className="text-gray-500">Email:</span> {c.email}</div>}
@@ -73,6 +88,21 @@ export default function ContactsPage() {
       </div>
 
       <AddContactDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onAdded={load} />
+      <EditContactDialog open={editOpen} contact={selectedContact} onClose={() => setEditOpen(false)} onSaved={load} />
+      <ConfirmDialog
+        open={deleteId !== null}
+        title="Delete contact"
+        message="This will remove the contact and any bill participations. Continue?"
+        confirmText="Delete"
+        cancelText="Cancel"
+        onCancel={() => setDeleteId(null)}
+        onConfirm={async () => {
+          if (!deleteId) return;
+          await fetch(`/api/contacts/${deleteId}`, { method: "DELETE" });
+          setDeleteId(null);
+          await load();
+        }}
+      />
     </div>
   );
 }
