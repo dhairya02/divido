@@ -1,0 +1,75 @@
+// Prisma schema for RestaurantSplit (SQLite)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum TaxMode {
+  GLOBAL
+  ITEM
+}
+
+model Contact {
+  id           String   @id @default(cuid())
+  name         String
+  email        String?  @unique
+  phone        String?
+  venmo        String?
+  cashapp      String?
+  createdAt    DateTime @default(now())
+  participants BillParticipant[]
+}
+
+model Bill {
+  id             String   @id @default(cuid())
+  title          String
+  venue          String?
+  date           DateTime @default(now())
+  subtotalCents  Int
+  taxRatePct     Float    @default(0)
+  tipRatePct     Float    @default(0)
+  currency       String   @default("USD")
+  taxMode        TaxMode  @default(GLOBAL)
+  createdAt      DateTime @default(now())
+  participants   BillParticipant[]
+  items          Item[]
+}
+
+model BillParticipant {
+  id         String  @id @default(cuid())
+  billId     String
+  contactId  String
+  note       String?
+  bill       Bill    @relation(fields: [billId], references: [id])
+  contact    Contact @relation(fields: [contactId], references: [id])
+  shares     ItemShare[]
+}
+
+model Item {
+  id         String @id @default(cuid())
+  billId     String
+  name       String
+  priceCents Int
+  quantity   Int    @default(1)
+  taxable    Boolean @default(true)
+  taxRatePct Float   @default(0)
+  bill       Bill   @relation(fields: [billId], references: [id])
+  shares     ItemShare[]
+}
+
+model ItemShare {
+  id             String @id @default(cuid())
+  itemId         String
+  participantId  String
+  weight         Float  @default(1)
+  item           Item   @relation(fields: [itemId], references: [id])
+  participant    BillParticipant @relation(fields: [participantId], references: [id])
+
+  @@unique([itemId, participantId])
+}
+
+

@@ -3,6 +3,11 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Custom palette */
+  --color-primary: #6f8bff; /* updated with new logo's blue */
+  --color-accent: #e8ffa3;  /* light green */
+  --color-secondary: #c77dff; /* purple */
+  --color-muted: #b794d9;    /* lavender */
 }
 
 @theme inline {
@@ -22,5 +27,21 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), Garamond, 'EB Garamond', serif;
 }
+
+/* Utility classes */
+.input {
+  @apply border rounded px-3 py-2 bg-white text-black dark:bg-neutral-900 dark:text-white border-black/10 dark:border-white/15;
+}
+.btn {
+  @apply inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-sm border-black/10 dark:border-white/15 bg-white/90 dark:bg-neutral-900/80 hover:ring-2 hover:ring-sky-400/60 dark:hover:ring-sky-500/50 transition shadow-sm;
+}
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-md text-white px-4 py-2 text-sm hover:ring-2 transition shadow;
+  background-color: var(--color-secondary);
+}
+.chip {
+  @apply inline-flex items-center rounded-full border px-3 py-1 text-sm border-black/10 dark:border-white/15 bg-white/70 dark:bg-neutral-900/60 hover:ring-2 hover:ring-sky-400/60 transition;
+}
+.chip-selected { @apply text-white; background-color: var(--color-primary); }
