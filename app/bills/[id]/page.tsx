@@ -12,6 +12,7 @@ import Money from "@/components/Money";
 import ReceiptOCR from "@/components/ReceiptOCR";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import AlertDialog from "@/components/AlertDialog";
+import { BreakdownByPerson, ItemsByPerson } from "@/components/Charts";
 
 type Participant = { id: string; name: string };
 type Item = { id: string; name: string; priceCents: number };
@@ -254,6 +255,7 @@ export default function BillDetailPage() {
         <section className="space-y-2">
           <h2 className="text-xl font-semibold">Summary</h2>
           <div className="text-sm">Subtotal <Money cents={calcResult.billTotals.subtotalCents} /> · Tax <Money cents={calcResult.billTotals.taxCents} /> · Tip <Money cents={calcResult.billTotals.tipCents} /> · Total <Money cents={calcResult.billTotals.grandTotalCents} /></div>
+          <BreakdownByPerson data={calcResult.participants.map((p: any) => ({ name: p.name, preTaxCents: p.preTaxCents, taxCents: p.taxCents, tipCents: p.tipCents }))} />
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left border-b">
@@ -278,81 +280,83 @@ export default function BillDetailPage() {
           </table>
 
           {/* Item-by-person matrix */}
-          <h3 className="text-lg font-medium mt-4">By item</h3>
+          <h3 className="text-xl font-semibold mt-4">By item</h3>
           <div className="overflow-auto">
-            <table className="w-full text-sm border rounded">
+            <table className="w-full text-base border rounded">
               <thead>
-                <tr className="border-b bg-black/5 dark:bg-white/10">
-                  <th className="py-2 text-left">Item</th>
+                <tr className="border-b" style={{ backgroundColor: "var(--color-primary)", color: "#fff" }}>
+                  <th className="px-4 py-3 text-left">Item</th>
                   {participants.map((p) => (
-                    <th key={p.id} className="text-right">{p.name}</th>
+                    <th key={p.id} className="px-4 py-3 text-right">{p.name}</th>
                   ))}
-                  <th className="text-right">Item total</th>
+                  <th className="px-4 py-3 text-right">Item total</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((it) => {
+                {items.map((it, idx) => {
                   const row = calcResult.byItem.find((x: any) => x.itemId === it.id);
                   const total = row ? row.allocations.reduce((a: number, r: any) => a + r.cents, 0) : 0;
                   return (
-                    <tr key={it.id} className="border-b">
-                      <td className="py-2">{it.name}</td>
+                    <tr key={it.id} className={`border-b ${idx % 2 === 0 ? "bg-black/[.025] dark:bg-white/[.04]" : ""}`}>
+                      <td className="px-4 py-2">{it.name}</td>
                       {participants.map((p) => {
                         const cents = row?.allocations.find((r: any) => r.participantId === p.id)?.cents ?? 0;
-                        return (
-                          <td key={p.id} className="text-right"><Money cents={cents} /></td>
-                        );
+                        return <td key={p.id} className="px-4 py-2 text-right">{cents === 0 ? "-" : <Money cents={cents} />}</td>;
                       })}
-                      <td className="text-right"><Money cents={total} /></td>
+                      <td className="px-4 py-2 text-right">{total === 0 ? "-" : <Money cents={total} />}</td>
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
-                <tr className="font-medium bg-black/5 dark:bg-white/10">
-                  <td className="py-2">Subtotal per person</td>
+                <tr className="font-medium" style={{ backgroundColor: "var(--color-accent)" }}>
+                  <td className="px-4 py-2">Subtotal per person</td>
                   {participants.map((p) => {
                     const val = calcResult.participants.find((x: any) => x.participantId === p.id)?.preTaxCents ?? 0;
-                    return <td key={p.id} className="text-right"><Money cents={val} /></td>;
+                    return <td key={p.id} className="px-4 py-2 text-right"><Money cents={val} /></td>;
                   })}
-                  <td className="text-right"><Money cents={calcResult.billTotals.subtotalCents} /></td>
+                  <td className="px-4 py-2 text-right"><Money cents={calcResult.billTotals.subtotalCents} /></td>
                 </tr>
                 <tr className="font-medium">
-                  <td className="py-2">Tax</td>
+                  <td className="px-4 py-2">Tax</td>
                   {participants.map((p) => {
                     const val = calcResult.participants.find((x: any) => x.participantId === p.id)?.taxCents ?? 0;
-                    return <td key={p.id} className="text-right"><Money cents={val} /></td>;
+                    return <td key={p.id} className="px-4 py-2 text-right"><Money cents={val} /></td>;
                   })}
-                  <td className="text-right"><Money cents={calcResult.billTotals.taxCents} /></td>
+                  <td className="px-4 py-2 text-right"><Money cents={calcResult.billTotals.taxCents} /></td>
                 </tr>
-                <tr className="font-medium bg-black/5 dark:bg-white/10">
-                  <td className="py-2">Total with tax</td>
+                <tr className="font-medium" style={{ backgroundColor: "var(--color-muted)" }}>
+                  <td className="px-4 py-2">Total with tax</td>
                   {participants.map((p) => {
                     const part = calcResult.participants.find((x: any) => x.participantId === p.id);
                     const val = (part?.preTaxCents ?? 0) + (part?.taxCents ?? 0);
-                    return <td key={p.id} className="text-right"><Money cents={val} /></td>;
+                    return <td key={p.id} className="px-4 py-2 text-right"><Money cents={val} /></td>;
                   })}
-                  <td className="text-right"><Money cents={calcResult.billTotals.subtotalCents + calcResult.billTotals.taxCents} /></td>
+                  <td className="px-4 py-2 text-right"><Money cents={calcResult.billTotals.subtotalCents + calcResult.billTotals.taxCents} /></td>
                 </tr>
                 <tr className="font-medium">
-                  <td className="py-2">Tip</td>
+                  <td className="px-4 py-2">Tip</td>
                   {participants.map((p) => {
                     const val = calcResult.participants.find((x: any) => x.participantId === p.id)?.tipCents ?? 0;
-                    return <td key={p.id} className="text-right"><Money cents={val} /></td>;
+                    return <td key={p.id} className="px-4 py-2 text-right"><Money cents={val} /></td>;
                   })}
-                  <td className="text-right"><Money cents={calcResult.billTotals.tipCents} /></td>
+                  <td className="px-4 py-2 text-right"><Money cents={calcResult.billTotals.tipCents} /></td>
                 </tr>
-                <tr className="font-semibold bg-black/10 dark:bg-white/15">
-                  <td className="py-2">Total with tip</td>
+                <tr className="font-semibold" style={{ backgroundColor: "var(--color-primary)", color: "#fff" }}>
+                  <td className="px-4 py-2">Total with tip</td>
                   {participants.map((p) => {
                     const val = calcResult.participants.find((x: any) => x.participantId === p.id)?.totalOwedCents ?? 0;
-                    return <td key={p.id} className="text-right"><Money cents={val} /></td>;
+                    return <td key={p.id} className="px-4 py-2 text-right"><Money cents={val} /></td>;
                   })}
-                  <td className="text-right"><Money cents={calcResult.billTotals.grandTotalCents} /></td>
+                  <td className="px-4 py-2 text-right"><Money cents={calcResult.billTotals.grandTotalCents} /></td>
                 </tr>
               </tfoot>
             </table>
           </div>
+          <ItemsByPerson
+            participants={participants}
+            byItem={calcResult.byItem.map((bi: any) => ({ ...bi, itemName: items.find((it) => it.id === bi.itemId)?.name }))}
+          />
         </section>
       )}
 
