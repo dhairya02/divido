@@ -46,6 +46,10 @@ export default function BillDetailPage() {
 
   useEffect(() => {
     load();
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('calc') === '1') {
+      setTimeout(() => { void calc(); }, 0);
+    }
   }, [billId]);
 
   const addItem = async (e: React.FormEvent) => {

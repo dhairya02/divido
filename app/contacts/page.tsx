@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import AddContactDialog from "@/components/AddContactDialog";
 import EditContactDialog from "@/components/EditContactDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import ContactDetailDialog from "@/components/ContactDetailDialog";
 
 type Contact = {
   id: string;
@@ -21,6 +22,8 @@ export default function ContactsPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [bulk, setBulk] = useState<Record<string, boolean>>({});
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const load = async () => {
     const res = await fetch("/api/contacts");
@@ -63,7 +66,10 @@ export default function ContactsPage() {
         {sorted.map((c) => (
           <details key={c.id} className="group">
             <summary className="flex items-center justify-between px-4 py-3 cursor-pointer select-none">
-              <span className="font-medium">{c.name}</span>
+              <div className="flex items-center gap-3">
+                <input type="checkbox" checked={!!bulk[c.id]} onChange={(e) => setBulk((b) => ({ ...b, [c.id]: e.target.checked }))} onClick={(e) => e.stopPropagation()} />
+                <button className="font-medium hover:underline" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedContact(c); setDetailOpen(true); }}> {c.name} </button>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -89,6 +95,7 @@ export default function ContactsPage() {
 
       <AddContactDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onAdded={load} />
       <EditContactDialog open={editOpen} contact={selectedContact} onClose={() => setEditOpen(false)} onSaved={load} />
+      <ContactDetailDialog open={detailOpen} contact={selectedContact} onClose={() => setDetailOpen(false)} />
       <ConfirmDialog
         open={deleteId !== null}
         title="Delete contact"
@@ -103,6 +110,20 @@ export default function ContactsPage() {
           await load();
         }}
       />
+      {Object.values(bulk).some(Boolean) && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-white dark:bg-neutral-900 border rounded shadow px-4 py-2 flex items-center gap-3">
+          <span className="text-sm">{Object.values(bulk).filter(Boolean).length} selected</span>
+          <button
+            className="btn"
+            onClick={async () => {
+              const ids = Object.entries(bulk).filter(([, v]) => v).map(([id]) => id);
+              await fetch('/api/contacts/bulk-delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+              setBulk({});
+              await load();
+            }}
+          >Delete selected</button>
+        </div>
+      )}
     </div>
   );
 }

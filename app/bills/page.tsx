@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import Money from "@/components/Money";
 import { revalidatePath } from "next/cache";
+import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -32,21 +33,35 @@ export default async function BillsHistoryPage() {
       }}>
         <button className="btn" type="submit">Clear all bills</button>
       </form>
-      {bills.length === 0 ? (
-        <div className="text-sm text-gray-500">No bills yet.</div>
-      ) : (
+      <form action={async (formData: FormData) => {
+        "use server";
+        const ids = formData.getAll('billId') as string[];
+        if (ids.length) {
+          await prisma.itemShare.deleteMany({ where: { item: { billId: { in: ids } } } });
+          await prisma.item.deleteMany({ where: { billId: { in: ids } } });
+          await prisma.billParticipant.deleteMany({ where: { billId: { in: ids } } });
+          await prisma.bill.deleteMany({ where: { id: { in: ids } } });
+          revalidatePath('/bills');
+        }
+      }} className="space-y-2">
         <div className="space-y-2">
           {bills.map((b) => (
-            <Link key={b.id} href={`/bills/${b.id}`} className="flex justify-between items-center border rounded p-3 hover:bg-black/5 dark:hover:bg-white/10">
-              <div>
-                <div className="font-medium">{b.title}</div>
+            <label key={b.id} className="flex items-center justify-between border rounded p-3 hover:bg-black/5 dark:hover:bg-white/10">
+              <div className="flex items-center gap-3">
+                <input type="checkbox" name="billId" value={b.id} />
+                <Link href={`/bills/${b.id}?calc=1`} className="font-medium hover:underline">{b.title}</Link>
                 <div className="text-xs text-gray-500">{b.venue ?? ""} {new Date(b.createdAt).toLocaleString()}</div>
               </div>
               <Money cents={b.subtotalCents} currency={b.currency} />
-            </Link>
+            </label>
           ))}
         </div>
-      )}
+        {bills.length > 0 && (
+          <div>
+            <button className="btn" type="submit">Delete selected bills</button>
+          </div>
+        )}
+      </form>
     </div>
   );
 }
