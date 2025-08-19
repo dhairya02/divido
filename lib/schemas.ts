@@ -40,6 +40,7 @@ export const itemUpdateSchema = z.object({
   priceCents: z.number().int().optional(),
   taxable: z.boolean().optional(),
   taxRatePct: z.number().min(0).optional(),
+  quantity: z.number().int().min(1).optional(),
 });
 
 export const shareUpsertSchema = z.object({

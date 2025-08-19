@@ -1,4 +1,10 @@
 "use client";
+/**
+ * Bill detail page
+ * - Add items (name, price, qty, taxability/rate)
+ * - Per-item share editor with click-to-select participants and adjustable weights
+ * - Calculate split and present per-person table + item matrix with summary footers
+ */
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import ItemShareEditor from "@/components/ItemShareEditor";
@@ -24,6 +30,7 @@ export default function BillDetailPage() {
   const [newItemPrice, setNewItemPrice] = useState("0");
   const [newItemTaxable, setNewItemTaxable] = useState(true);
   const [newItemTaxRatePct, setNewItemTaxRatePct] = useState<number | "">("");
+  const [newItemQty, setNewItemQty] = useState<number>(1);
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -53,7 +60,7 @@ export default function BillDetailPage() {
       const res = await fetch(`/api/bills/${billId}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newItemName, priceCents, taxable: newItemTaxable, taxRatePct }),
+        body: JSON.stringify({ name: newItemName, priceCents, taxable: newItemTaxable, taxRatePct, quantity: newItemQty }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || `Failed to add item (status ${res.status})`);
@@ -142,6 +149,10 @@ export default function BillDetailPage() {
           <input className="input" placeholder="Item name" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} required />
           <input className="input w-40" type="number" step="0.01" placeholder="Price (e.g., 12.34)" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} />
           <label className="flex items-center gap-2 text-sm">
+            <span>Qty</span>
+            <input className="input w-20" type="number" min={1} value={newItemQty} onChange={(e) => setNewItemQty(Number(e.target.value))} />
+          </label>
+          <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={newItemTaxable} onChange={(e) => setNewItemTaxable(e.target.checked)} /> Taxable
           </label>
           {newItemTaxable && (
@@ -153,7 +164,7 @@ export default function BillDetailPage() {
           <button className="btn-primary" type="submit" disabled={adding}>{adding ? "Adding..." : "Add"}</button>
           {addError && <span className="text-red-600 text-sm">{addError}</span>}
         </form>
-        <div className="space-y-3">
+        <div className="space-y-3 max-h-[70vh] overflow-auto pr-2">
           {items.map((it) => (
             <div key={it.id} className="space-y-2">
               <div className="flex justify-between items-center gap-3">
@@ -170,6 +181,23 @@ export default function BillDetailPage() {
                     defaultValue={(it.priceCents / 100).toFixed(2)}
                     onBlur={(e) => updateItem(it.id, it.name, Math.round(parseFloat(e.target.value || "0") * 100))}
                   />
+                  <label className="flex items-center gap-2 text-sm">
+                    <span>Qty</span>
+                    <input
+                      className="input w-20"
+                      type="number"
+                      min={1}
+                      defaultValue={(it as any).quantity ?? 1}
+                      onBlur={async (e) => {
+                        await fetch(`/api/bills/${billId}/items`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ itemId: it.id, quantity: Number(e.target.value) }),
+                        });
+                        await load();
+                      }}
+                    />
+                  </label>
                   <label className="flex items-center gap-2 text-sm">
                     <input type="checkbox" defaultChecked={(it as any).taxable ?? true} onChange={async (e) => {
                       await fetch(`/api/bills/${billId}/items`, {
@@ -252,12 +280,12 @@ export default function BillDetailPage() {
           {/* Item-by-person matrix */}
           <h3 className="text-lg font-medium mt-4">By item</h3>
           <div className="overflow-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm border rounded">
               <thead>
-                <tr className="text-left border-b">
-                  <th className="py-2">Item</th>
+                <tr className="border-b bg-black/5 dark:bg-white/10">
+                  <th className="py-2 text-left">Item</th>
                   {participants.map((p) => (
-                    <th key={p.id}>{p.name}</th>
+                    <th key={p.id} className="text-right">{p.name}</th>
                   ))}
                   <th className="text-right">Item total</th>
                 </tr>
@@ -272,7 +300,7 @@ export default function BillDetailPage() {
                       {participants.map((p) => {
                         const cents = row?.allocations.find((r: any) => r.participantId === p.id)?.cents ?? 0;
                         return (
-                          <td key={p.id}><Money cents={cents} /></td>
+                          <td key={p.id} className="text-right"><Money cents={cents} /></td>
                         );
                       })}
                       <td className="text-right"><Money cents={total} /></td>
@@ -281,13 +309,46 @@ export default function BillDetailPage() {
                 })}
               </tbody>
               <tfoot>
-                <tr className="font-medium">
-                  <td>Total per person</td>
+                <tr className="font-medium bg-black/5 dark:bg-white/10">
+                  <td className="py-2">Subtotal per person</td>
                   {participants.map((p) => {
                     const val = calcResult.participants.find((x: any) => x.participantId === p.id)?.preTaxCents ?? 0;
-                    return <td key={p.id}><Money cents={val} /></td>;
+                    return <td key={p.id} className="text-right"><Money cents={val} /></td>;
                   })}
                   <td className="text-right"><Money cents={calcResult.billTotals.subtotalCents} /></td>
+                </tr>
+                <tr className="font-medium">
+                  <td className="py-2">Tax</td>
+                  {participants.map((p) => {
+                    const val = calcResult.participants.find((x: any) => x.participantId === p.id)?.taxCents ?? 0;
+                    return <td key={p.id} className="text-right"><Money cents={val} /></td>;
+                  })}
+                  <td className="text-right"><Money cents={calcResult.billTotals.taxCents} /></td>
+                </tr>
+                <tr className="font-medium bg-black/5 dark:bg-white/10">
+                  <td className="py-2">Total with tax</td>
+                  {participants.map((p) => {
+                    const part = calcResult.participants.find((x: any) => x.participantId === p.id);
+                    const val = (part?.preTaxCents ?? 0) + (part?.taxCents ?? 0);
+                    return <td key={p.id} className="text-right"><Money cents={val} /></td>;
+                  })}
+                  <td className="text-right"><Money cents={calcResult.billTotals.subtotalCents + calcResult.billTotals.taxCents} /></td>
+                </tr>
+                <tr className="font-medium">
+                  <td className="py-2">Tip</td>
+                  {participants.map((p) => {
+                    const val = calcResult.participants.find((x: any) => x.participantId === p.id)?.tipCents ?? 0;
+                    return <td key={p.id} className="text-right"><Money cents={val} /></td>;
+                  })}
+                  <td className="text-right"><Money cents={calcResult.billTotals.tipCents} /></td>
+                </tr>
+                <tr className="font-semibold bg-black/10 dark:bg-white/15">
+                  <td className="py-2">Total with tip</td>
+                  {participants.map((p) => {
+                    const val = calcResult.participants.find((x: any) => x.participantId === p.id)?.totalOwedCents ?? 0;
+                    return <td key={p.id} className="text-right"><Money cents={val} /></td>;
+                  })}
+                  <td className="text-right"><Money cents={calcResult.billTotals.grandTotalCents} /></td>
                 </tr>
               </tfoot>
             </table>
