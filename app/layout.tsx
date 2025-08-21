@@ -4,6 +4,8 @@ import "./globals.css";
 import HistoryNav from "@/components/HistoryNav";
 import Link from "next/link";
 import Logo from "@/components/Logo";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const garamond = EB_Garamond({
   variable: "--font-body",
@@ -19,11 +21,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await getServerSession(authOptions);
   return (
     <html lang="en">
       <body className={`${garamond.variable} antialiased`}>
@@ -34,7 +37,19 @@ export default function RootLayout({
                 <Logo className="h-10 w-auto" />
                 <span className="hidden sm:inline text-[#E6FDA3] font-bold text-2xl">Divido</span>
               </Link>
-              <HistoryNav />
+              <div className="flex items-center gap-3">
+                <HistoryNav />
+                {session ? (
+                  <form action={async () => { "use server"; const { signOut } = await import("next-auth/react"); await signOut({ redirect: false }); }}>
+                    <Link href="/api/auth/signout" className="btn">Logout</Link>
+                  </form>
+                ) : (
+                  <>
+                    <Link href="/login" className="btn">Login</Link>
+                    <Link href="/register" className="btn">Register</Link>
+                  </>
+                )}
+              </div>
             </div>
           </header>
           <main>
