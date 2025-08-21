@@ -2,7 +2,6 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import Money from "@/components/Money";
 import { revalidatePath } from "next/cache";
-import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
