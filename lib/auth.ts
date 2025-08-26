@@ -5,8 +5,9 @@ import { prisma } from "@/lib/db";
 import bcrypt from "bcrypt";
 
 export const authOptions: NextAuthOptions = {
+  // Adapter is optional when using JWT strategy, but we keep it for future providers
   adapter: PrismaAdapter(prisma),
-  session: { strategy: "database" },
+  session: { strategy: "jwt" },
   providers: [
     Credentials({
       name: "Credentials",
@@ -30,8 +31,13 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   callbacks: {
-    async session({ session, user }) {
-      if (session.user) (session.user as any).id = user.id;
+    async jwt({ token, user }) {
+      // On sign in, persist user id on token
+      if (user) token.id = (user as any).id;
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user && token?.id) (session.user as any).id = token.id as string;
       return session;
     },
   },

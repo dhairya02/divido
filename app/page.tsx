@@ -1,7 +1,12 @@
 import Link from "next/link";
 import Money from "@/components/Money";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-export default function Home() {
+export default async function Home() {
+  const session = await getServerSession(authOptions);
+  if (!session) redirect("/login");
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
       <header className="flex items-center justify-between">
@@ -28,9 +33,13 @@ export default function Home() {
 
 async function RecentBills() {
   const { prisma } = await import("@/lib/db");
+  const { getServerSession } = await import("next-auth");
+  const { authOptions } = await import("@/lib/auth");
+  const session = await getServerSession(authOptions);
   const bills = await prisma.bill.findMany({
     orderBy: { createdAt: "desc" },
     take: 5,
+    where: session ? { userId: (session.user as any).id } : { id: "__none__" } as any,
     select: { id: true, title: true, subtotalCents: true, currency: true },
   });
   if (bills.length === 0) return null;

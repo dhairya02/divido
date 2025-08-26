@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import bcrypt from "bcrypt";
 import { z } from "zod";
 
+export const runtime = "nodejs";
+
 const schema = z.object({ name: z.string().min(1), email: z.string().email(), password: z.string().min(8) });
 
 export async function POST(req: Request) {

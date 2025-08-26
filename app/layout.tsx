@@ -6,6 +6,7 @@ import Link from "next/link";
 import Logo from "@/components/Logo";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import Providers from "@/components/Providers";
 
 const garamond = EB_Garamond({
   variable: "--font-body",
@@ -52,9 +53,11 @@ export default async function RootLayout({
               </div>
             </div>
           </header>
-          <main>
-            {children}
-          </main>
+          <Providers>
+            <main>
+              {children}
+            </main>
+          </Providers>
         </div>
       </body>
     </html>
