@@ -14,8 +14,8 @@ export default function BalancesPage() {
   useEffect(() => {
     (async () => {
       const [billsData, contactsData] = await Promise.all([
-        fetch("/api/bills").then((r) => r.json()),
-        fetch("/api/contacts").then((r) => r.json()),
+        fetch("/api/bills", { cache: "no-store" }).then((r) => r.json()),
+        fetch("/api/contacts", { cache: "no-store" }).then((r) => r.json()),
       ]);
       setBills(billsData);
       const nameMap: Record<string, string> = {};

@@ -145,7 +145,29 @@ export default function BillDetailPage() {
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       {bill && (
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold">{bill.title}</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-semibold">{bill.title}</h1>
+            {/* Payee pill */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Payee:</span>
+              <div className="flex items-center gap-2">
+                <select
+                  className="chip"
+                  value={bill.paidByContactId || ""}
+                  onChange={async (e) => {
+                    const val = e.target.value || null;
+                    await fetch(`/api/bills/${billId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paidByContactId: val }) });
+                    await load();
+                  }}
+                >
+                  <option value="">?</option>
+                  {participants.map((p) => (
+                    <option key={p.id} value={(p as any).contactId || p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
           <div className="text-sm text-gray-600">
             {bill.venue ? `${bill.venue} · ` : ""}Subtotal: <Money cents={bill.subtotalCents} /> · Tax {bill.taxRatePct}% · Tip {bill.tipRatePct}%
           </div>
@@ -314,7 +336,9 @@ export default function BillDetailPage() {
               <div className="text-xl font-semibold" style={{ color: "#111827" }}>{bill?.title || "Bill"}</div>
             </div>
             <div className="text-sm" style={{ color: "#374151" }}>
-              {bill?.venue ? `${bill.venue} · ` : ""}Subtotal <Money cents={calcResult.billTotals.subtotalCents} /> · Tax <Money cents={calcResult.billTotals.taxCents} /> · Tip <Money cents={calcResult.billTotals.tipCents} /> · Conv. fee <Money cents={calcResult.billTotals.convenienceFeeCents} /> · Total <Money cents={calcResult.billTotals.grandTotalCents} />
+              {bill?.venue ? `${bill.venue} · ` : ""}
+              {bill?.paidByContactId ? `Payee ${participants.find((p) => (p as any).contactId === bill.paidByContactId)?.name || ""} · ` : ""}
+              Subtotal <Money cents={calcResult.billTotals.subtotalCents} /> · Tax <Money cents={calcResult.billTotals.taxCents} /> · Tip <Money cents={calcResult.billTotals.tipCents} /> · Conv. fee <Money cents={calcResult.billTotals.convenienceFeeCents} /> · Total <Money cents={calcResult.billTotals.grandTotalCents} />
             </div>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "16px", border: "1px solid #e5e7eb" }}>
               <thead>
