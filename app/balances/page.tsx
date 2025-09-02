@@ -26,7 +26,7 @@ export default function BalancesPage() {
       const owes: Owes = {};
       for (const b of billsData as any[]) {
         const calc = await fetch(`/api/bills/${b.id}/calc`).then((r) => r.json());
-        const payer = b.paidByContactId as string | undefined;
+        const payer = (b as any).paidByContactId as string | undefined;
         if (!calc || !calc.participants || !payer) continue;
         for (const p of calc.participants) {
           if (p.contactId === payer) continue;
