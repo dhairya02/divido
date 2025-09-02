@@ -14,6 +14,7 @@ export default async function Home() {
         <nav className="flex gap-2">
           <Link href="/bills" className="btn">Bills</Link>
           <Link href="/contacts" className="btn">Contacts</Link>
+          <Link href="/balances" className="btn">Balances</Link>
           <Link href="/bills/new" className="btn-primary">New Bill</Link>
         </nav>
       </header>

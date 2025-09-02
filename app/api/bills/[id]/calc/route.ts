@@ -50,7 +50,15 @@ export async function GET(_: Request, { params }: Params) {
     convenienceFeeRatePct: (bill as any).convenienceFeeRatePct ?? 0,
   });
 
-  return NextResponse.json(result);
+  // Attach contactId to participants in the response so downstream consumers
+  // can resolve who is who without an extra query.
+  const participantIdToContactId = new Map(bill.participants.map((bp) => [bp.id, bp.contactId] as const));
+  const participantsWithContactId = result.participants.map((p) => ({
+    ...p,
+    contactId: participantIdToContactId.get(p.participantId),
+  }));
+
+  return NextResponse.json({ ...result, participants: participantsWithContactId });
 }
 
 

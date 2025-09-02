@@ -11,6 +11,7 @@ export default function QuickSplitPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [tempName, setTempName] = useState("");
+  const [paidBy, setPaidBy] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -51,19 +52,22 @@ export default function QuickSplitPage() {
       }
       // Ensure contacts exist for temp participants
       const ensuredIds: string[] = [];
+      const tempToReal: Record<string, string> = {};
       for (const p of participants) {
         if (p.id.startsWith("temp-")) {
-          const res = await fetch("/api/contacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: p.name }) });
+          const res = await fetch("/api/contacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: p.name, isTemporary: true }) });
           const data = await res.json();
           if (res.status === 401) { setErrorMsg("Please log in to save a bill."); return; }
           if (!res.ok || !data?.id) throw new Error(data?.error || "Failed to create contact");
           ensuredIds.push(data.id);
+          tempToReal[p.id] = data.id as string;
         } else {
           ensuredIds.push(p.id);
         }
       }
       const subtotalCents = Math.round(parseFloat((totalDollars || "0").replace(/[^0-9.\-]/g, "")) * 100) || 0;
-      const billRes = await fetch("/api/bills", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: title || "Quick Split", venue, subtotalCents, taxRatePct: 0, tipRatePct: 0, convenienceFeeRatePct: feePct || 0, participantContactIds: ensuredIds, taxMode: "GLOBAL" }) });
+      const paidByResolved = paidBy ? (paidBy.startsWith("temp-") ? (tempToReal[paidBy] || undefined) : paidBy) : undefined;
+      const billRes = await fetch("/api/bills", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: title || "Quick Split", venue, subtotalCents, taxRatePct: 0, tipRatePct: 0, convenienceFeeRatePct: feePct || 0, participantContactIds: ensuredIds, paidByContactId: paidByResolved, taxMode: "GLOBAL" }) });
       const billData = await billRes.json();
       if (billRes.status === 401) { setErrorMsg("Please log in to save a bill."); return; }
       if (!billRes.ok || !billData?.id) throw new Error(billData?.error || "Failed to create bill");
@@ -136,6 +140,16 @@ export default function QuickSplitPage() {
           <input className="input" placeholder="Add temporary name" value={tempName} onChange={(e) => setTempName(e.target.value)} />
           <button className="btn" type="button" onClick={addTemp}>Add temp</button>
         </div>
+      </div>
+
+      <div>
+        <div className="text-sm text-gray-600 mb-2">Who paid?</div>
+        <select className="input w-full max-w-sm" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
+          <option value="">Select payer (optional)</option>
+          {participants.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
       </div>
 
       <section className="space-y-2">

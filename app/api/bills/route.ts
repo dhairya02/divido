@@ -20,6 +20,7 @@ export async function GET() {
       tipRatePct: true,
       convenienceFeeRatePct: true,
       currency: true,
+      paidByContactId: true,
     },
   });
   return NextResponse.json(bills);

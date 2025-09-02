@@ -7,6 +7,7 @@ import Logo from "@/components/Logo";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import Providers from "@/components/Providers";
+import AccountMenu from "@/components/AccountMenu";
 
 const garamond = EB_Garamond({
   variable: "--font-body",
@@ -39,9 +40,7 @@ export default async function RootLayout({
               <div className="flex items-center gap-3">
                 <HistoryNav />
                 {session ? (
-                  <form action={async () => { "use server"; const { signOut } = await import("next-auth/react"); await signOut({ redirect: false }); }}>
-                    <Link href="/api/auth/signout" className="btn" style={{ backgroundColor: "#ffffff", color: "#1f2937" }}>Logout</Link>
-                  </form>
+                  <AccountMenu />
                 ) : (
                   <>
                     <Link href="/login" className="btn" style={{ backgroundColor: "#ffffff", color: "#1f2937" }}>Login</Link>

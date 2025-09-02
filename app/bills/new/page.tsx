@@ -19,6 +19,7 @@ export default function NewBillPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [contactsCache, setContactsCache] = useState<any[]>([]);
+  const [tempMap, setTempMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch("/api/contacts").then((r) => r.json()).then((data) => setContactsCache(data));
@@ -35,10 +36,39 @@ export default function NewBillPage() {
     try {
       const parsed = parseFloat((subtotalDollars || "0").toString().replace(/[^0-9.\-]/g, ""));
       const subtotalCents = Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+
+      // If logged in, upsert temporary participants as real contacts first
+      let participantIds = [...selected];
+      let paidByResolved: string | undefined = paidBy || undefined;
+      if (session?.user) {
+        const tempToReal: Record<string, string> = {};
+        const ensured: string[] = [];
+        for (const id of selected) {
+          if (id.startsWith("temp-")) {
+            const contact = (contactsCache as any[]).find?.((c) => c.id === id);
+            const name = contact?.name || tempMap[id] || "Guest";
+            const cRes = await fetch("/api/contacts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name, isTemporary: true }),
+            });
+            const cData = await cRes.json();
+            if (cRes.status === 401) throw new Error("Please log in to create a bill.");
+            if (!cRes.ok || !cData?.id) throw new Error(cData?.error || "Failed creating temporary contact");
+            tempToReal[id] = cData.id as string;
+            ensured.push(cData.id as string);
+          } else {
+            ensured.push(id);
+          }
+        }
+        participantIds = ensured;
+        if (paidBy && tempToReal[paidBy]) paidByResolved = tempToReal[paidBy];
+      }
+
       const res = await fetch("/api/bills", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, venue, subtotalCents, taxRatePct, tipRatePct, participantContactIds: selected, taxMode, convenienceFeeRatePct: feeRatePct, paidByContactId: paidBy || undefined }),
+        body: JSON.stringify({ title, venue, subtotalCents, taxRatePct, tipRatePct, participantContactIds: participantIds, taxMode, convenienceFeeRatePct: feeRatePct, paidByContactId: paidByResolved }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || `Failed to create bill (status ${res.status})`);
@@ -109,15 +139,21 @@ export default function NewBillPage() {
         </div>
         <div>
           <div className="text-sm text-gray-600 mb-2">Participants</div>
-          <ParticipantPicker selectedIds={selected} onToggle={toggle} />
+          <ParticipantPicker
+            selectedIds={selected}
+            onToggle={toggle}
+            enableTemp
+            onContactsChange={(cs) => setContactsCache(cs)}
+            onTempMapChange={(m) => setTempMap(m)}
+          />
         </div>
         <div>
           <div className="text-sm text-gray-600 mb-2">Who paid?</div>
           <select className="input w-full max-w-sm" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
             <option value="">Select payer (optional)</option>
             {selected.map((id) => {
-              const c = (contactsCache.find?.((x: any) => x.id === id) as any) || { name: id };
-              return <option key={id} value={id}>{c.name || id}</option>;
+              const c = (contactsCache.find?.((x: any) => x.id === id) as any) || { name: tempMap[id] || id };
+              return <option key={id} value={id}>{c.name || tempMap[id] || id}</option>;
             })}
           </select>
         </div>

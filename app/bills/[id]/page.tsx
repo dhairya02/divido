@@ -14,7 +14,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import AlertDialog from "@/components/AlertDialog";
 import html2canvas from "html2canvas";
 
-type Participant = { id: string; name: string };
+type Participant = { id: string; name: string; contactId?: string };
 type Item = { id: string; name: string; priceCents: number };
 type Share = { id: string; itemId: string; participantId: string; weight: number };
 
@@ -39,7 +39,7 @@ export default function BillDetailPage() {
   const load = async () => {
     const data = await fetch(`/api/bills/${billId}`).then((r) => r.json());
     setBill(data.bill);
-    setParticipants(data.participants.map((p: any) => ({ id: p.id, name: p.name })));
+    setParticipants(data.participants.map((p: any) => ({ id: p.id, name: p.name, contactId: p.contactId })));
     setParticipantContactIds(data.participants.map((p: any) => p.contactId));
     setItems(data.items);
     setShares(data.shares);
@@ -145,7 +145,29 @@ export default function BillDetailPage() {
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       {bill && (
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold">{bill.title}</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-semibold">{bill.title}</h1>
+            {/* Payee pill */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Payee:</span>
+              <div className="flex items-center gap-2">
+                <select
+                  className="chip"
+                  value={bill.paidByContactId || ""}
+                  onChange={async (e) => {
+                    const val = e.target.value || null;
+                    await fetch(`/api/bills/${billId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paidByContactId: val }) });
+                    await load();
+                  }}
+                >
+                  <option value="">?</option>
+                  {participants.map((p) => (
+                    <option key={p.id} value={p.contactId || p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
           <div className="text-sm text-gray-600">
             {bill.venue ? `${bill.venue} · ` : ""}Subtotal: <Money cents={bill.subtotalCents} /> · Tax {bill.taxRatePct}% · Tip {bill.tipRatePct}%
           </div>
@@ -155,6 +177,7 @@ export default function BillDetailPage() {
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Items</h2>
         <hr className="border-t border-black/10 dark:border-white/10" />
+        {/* Removed duplicate payer selection; payee lives in header */}
         <form onSubmit={addItem} className="flex gap-2 items-center flex-wrap">
           <input className="input" placeholder="Item name" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} required />
           <input className="input w-40" type="number" step="0.01" placeholder="Price (e.g., 12.34)" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} />
@@ -294,7 +317,9 @@ export default function BillDetailPage() {
               <div className="text-xl font-semibold" style={{ color: "#111827" }}>{bill?.title || "Bill"}</div>
             </div>
             <div className="text-sm" style={{ color: "#374151" }}>
-              {bill?.venue ? `${bill.venue} · ` : ""}Subtotal <Money cents={calcResult.billTotals.subtotalCents} /> · Tax <Money cents={calcResult.billTotals.taxCents} /> · Tip <Money cents={calcResult.billTotals.tipCents} /> · Conv. fee <Money cents={calcResult.billTotals.convenienceFeeCents} /> · Total <Money cents={calcResult.billTotals.grandTotalCents} />
+              {bill?.venue ? `${bill.venue} · ` : ""}
+              {bill?.paidByContactId ? `Payee ${participants.find((p) => p.contactId === bill.paidByContactId)?.name || ""} · ` : ""}
+              Subtotal <Money cents={calcResult.billTotals.subtotalCents} /> · Tax <Money cents={calcResult.billTotals.taxCents} /> · Tip <Money cents={calcResult.billTotals.tipCents} /> · Conv. fee <Money cents={calcResult.billTotals.convenienceFeeCents} /> · Total <Money cents={calcResult.billTotals.grandTotalCents} />
             </div>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "16px", border: "1px solid #e5e7eb" }}>
               <thead>

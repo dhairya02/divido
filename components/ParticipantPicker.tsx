@@ -12,18 +12,47 @@ type Contact = { id: string; name: string } & Partial<{ venmo: string; cashapp: 
 export default function ParticipantPicker({
   selectedIds,
   onToggle,
+  enableTemp = false,
+  onContactsChange,
+  onTempMapChange,
 }: {
   selectedIds: string[];
   onToggle: (contactId: string) => void;
+  enableTemp?: boolean;
+  onContactsChange?: (contacts: Contact[]) => void;
+  onTempMapChange?: (map: Record<string, string>) => void;
 }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [query, setQuery] = useState("");
+  const [tempName, setTempName] = useState("");
+  const [tempMap, setTempMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    fetch("/api/contacts").then((r) => r.json()).then((data) => {
-      setContacts(data);
-    });
-  }, []);
+    fetch("/api/contacts")
+      .then((r) => r.json())
+      .then((data) => {
+        setContacts(data);
+        onContactsChange?.(data);
+      });
+  }, [onContactsChange]);
+
+  const addTemp = () => {
+    const name = tempName.trim();
+    if (!name) return;
+    const id = `temp-${crypto.randomUUID()}`;
+    const next = [{ id, name }, ...contacts];
+    setContacts(next);
+    onContactsChange?.(next);
+    setTempMap((m) => ({ ...m, [id]: name }));
+    setTempName("");
+    setQuery("");
+    onToggle(id);
+  };
+
+  // Notify parent about temp name mapping changes outside of render path
+  useEffect(() => {
+    if (onTempMapChange) onTempMapChange(tempMap);
+  }, [tempMap, onTempMapChange]);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
@@ -53,6 +82,12 @@ export default function ParticipantPicker({
           );
         })}
       </div>
+      {enableTemp && (
+        <div className="flex items-center gap-2">
+          <input className="input" placeholder="Add temporary name" value={tempName} onChange={(e) => setTempName(e.target.value)} />
+          <button className="btn" type="button" onClick={addTemp}>Add temp</button>
+        </div>
+      )}
     </div>
   );
 }

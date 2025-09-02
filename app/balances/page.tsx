@@ -10,37 +10,46 @@ export default function BalancesPage() {
   const [rows, setRows] = useState<{ from: string; to: string; cents: number }[]>([]);
   const [contacts, setContacts] = useState<Record<string, string>>({});
   const [bills, setBills] = useState<SimpleBill[]>([]);
+  const [currentContactId, setCurrentContactId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [billsData, contactsData] = await Promise.all([
-        fetch("/api/bills").then((r) => r.json()),
-        fetch("/api/contacts").then((r) => r.json()),
+      const [billsData, contactsData, me] = await Promise.all([
+        fetch("/api/bills", { cache: "no-store" }).then((r) => r.json()),
+        fetch("/api/contacts", { cache: "no-store" }).then((r) => r.json()),
+        fetch("/api/me/contact", { cache: "no-store" }).then((r) => r.json()).catch(() => null),
       ]);
       setBills(billsData);
       const nameMap: Record<string, string> = {};
       for (const c of contactsData) nameMap[c.id] = c.name;
       setContacts(nameMap);
+      // Pick the contact matching the logged-in user's name/email if present
+      if (me && me.id) setCurrentContactId(me.id);
 
       // naive aggregation using calc API for each bill
       const owes: Owes = {};
       for (const b of billsData as any[]) {
         const calc = await fetch(`/api/bills/${b.id}/calc`).then((r) => r.json());
-        const payer = b.paidByContactId as string | undefined;
+        const payer = (b as any).paidByContactId as string | undefined;
         if (!calc || !calc.participants || !payer) continue;
         for (const p of calc.participants) {
-          if (p.contactId === payer) continue;
-          const key = `${p.contactId}->${payer}`;
+          const contactId = (p as any).contactId || p.participantId; // fallback
+          if (contactId === payer) continue;
+          const key = `${contactId}->${payer}`;
           owes[key] = (owes[key] || 0) + p.totalOwedCents;
         }
       }
-      const list = Object.entries(owes)
+      let list = Object.entries(owes)
         .map(([k, cents]) => {
           const [from, to] = k.split("->");
           return { from, to, cents };
         })
         .filter((x) => x.cents > 0)
         .sort((a, b) => b.cents - a.cents);
+      // If we know the current user's contact, filter to only what they owe or are owed
+      if (currentContactId) {
+        list = list.filter((r) => r.from === currentContactId || r.to === currentContactId);
+      }
       setRows(list);
     })();
   }, []);
