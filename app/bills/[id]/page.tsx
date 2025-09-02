@@ -318,7 +318,7 @@ export default function BillDetailPage() {
             </div>
             <div className="text-sm" style={{ color: "#374151" }}>
               {bill?.venue ? `${bill.venue} · ` : ""}
-              {bill?.paidByContactId ? `Payee ${participants.find((p) => (p as any).contactId === bill.paidByContactId)?.name || ""} · ` : ""}
+              {bill?.paidByContactId ? `Payee ${participants.find((p) => p.contactId === bill.paidByContactId)?.name || ""} · ` : ""}
               Subtotal <Money cents={calcResult.billTotals.subtotalCents} /> · Tax <Money cents={calcResult.billTotals.taxCents} /> · Tip <Money cents={calcResult.billTotals.tipCents} /> · Conv. fee <Money cents={calcResult.billTotals.convenienceFeeCents} /> · Total <Money cents={calcResult.billTotals.grandTotalCents} />
             </div>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "16px", border: "1px solid #e5e7eb" }}>
