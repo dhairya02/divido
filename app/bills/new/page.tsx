@@ -19,6 +19,7 @@ export default function NewBillPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [contactsCache, setContactsCache] = useState<any[]>([]);
+  const [tempMap, setTempMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch("/api/contacts").then((r) => r.json()).then((data) => setContactsCache(data));
@@ -45,7 +46,7 @@ export default function NewBillPage() {
         for (const id of selected) {
           if (id.startsWith("temp-")) {
             const contact = (contactsCache as any[]).find?.((c) => c.id === id);
-            const name = contact?.name || "Guest";
+            const name = contact?.name || tempMap[id] || "Guest";
             const cRes = await fetch("/api/contacts", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -143,6 +144,7 @@ export default function NewBillPage() {
             onToggle={toggle}
             enableTemp
             onContactsChange={(cs) => setContactsCache(cs)}
+            onTempMapChange={(m) => setTempMap(m)}
           />
         </div>
         <div>
@@ -150,8 +152,8 @@ export default function NewBillPage() {
           <select className="input w-full max-w-sm" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
             <option value="">Select payer (optional)</option>
             {selected.map((id) => {
-              const c = (contactsCache.find?.((x: any) => x.id === id) as any) || { name: id };
-              return <option key={id} value={id}>{c.name || id}</option>;
+              const c = (contactsCache.find?.((x: any) => x.id === id) as any) || { name: tempMap[id] || id };
+              return <option key={id} value={id}>{c.name || tempMap[id] || id}</option>;
             })}
           </select>
         </div>

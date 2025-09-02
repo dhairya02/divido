@@ -14,15 +14,18 @@ export default function ParticipantPicker({
   onToggle,
   enableTemp = false,
   onContactsChange,
+  onTempMapChange,
 }: {
   selectedIds: string[];
   onToggle: (contactId: string) => void;
   enableTemp?: boolean;
   onContactsChange?: (contacts: Contact[]) => void;
+  onTempMapChange?: (map: Record<string, string>) => void;
 }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [query, setQuery] = useState("");
   const [tempName, setTempName] = useState("");
+  const [tempMap, setTempMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch("/api/contacts")
@@ -40,6 +43,11 @@ export default function ParticipantPicker({
     const next = [...contacts, { id, name }];
     setContacts(next);
     onContactsChange?.(next);
+    setTempMap((m) => {
+      const nm = { ...m, [id]: name };
+      onTempMapChange?.(nm);
+      return nm;
+    });
     setTempName("");
     onToggle(id);
   };
