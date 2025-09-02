@@ -47,6 +47,7 @@ export async function GET(_: Request, { params }: Params) {
     taxRatePct: bill.taxRatePct,
     tipRatePct: bill.tipRatePct,
     taxMode: bill.taxMode,
+    convenienceFeeRatePct: (bill as any).convenienceFeeRatePct ?? 0,
   });
 
   return NextResponse.json(result);

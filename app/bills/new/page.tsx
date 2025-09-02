@@ -10,10 +10,17 @@ export default function NewBillPage() {
   const [subtotalDollars, setSubtotalDollars] = useState("0");
   const [taxRatePct, setTaxRatePct] = useState(8.875);
   const [tipRatePct, setTipRatePct] = useState(15);
+  const [feeRatePct, setFeeRatePct] = useState(0);
   const [taxMode, setTaxMode] = useState<"GLOBAL" | "ITEM">("GLOBAL");
   const [selected, setSelected] = useState<string[]>([]);
+  const [paidBy, setPaidBy] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [contactsCache, setContactsCache] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("/api/contacts").then((r) => r.json()).then((data) => setContactsCache(data));
+  }, []);
 
   const toggle = (id: string) => {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -29,7 +36,7 @@ export default function NewBillPage() {
       const res = await fetch("/api/bills", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, venue, subtotalCents, taxRatePct, tipRatePct, participantContactIds: selected, taxMode }),
+        body: JSON.stringify({ title, venue, subtotalCents, taxRatePct, tipRatePct, participantContactIds: selected, taxMode, convenienceFeeRatePct: feeRatePct, paidByContactId: paidBy || undefined }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || `Failed to create bill (status ${res.status})`);
@@ -48,12 +55,23 @@ export default function NewBillPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
-      <h1 className="text-2xl font-semibold">New Bill</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">New Bill</h1>
+        <a className="btn" href="/quick-split">Quick Split</a>
+      </div>
       <form onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <label className="flex flex-col gap-1">
             <span className="text-sm text-gray-400">Title</span>
             <input className="input" placeholder="Dinner at Luigi's" value={title} onChange={(e) => setTitle(e.target.value)} required />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-sm text-gray-400">Convenience fee (%)</span>
+            <div className="flex items-center gap-2">
+              <input className="input flex-1" placeholder="0" type="number" step="0.1" min="0" value={feeRatePct} onChange={(e) => setFeeRatePct(Number(e.target.value))} />
+              <span className="px-2">%</span>
+            </div>
+            <span className="text-xs text-gray-500">Optional surcharge distributed proportionally.</span>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-sm text-gray-400">Venue (optional)</span>
@@ -87,6 +105,16 @@ export default function NewBillPage() {
         <div>
           <div className="text-sm text-gray-600 mb-2">Participants</div>
           <ParticipantPicker selectedIds={selected} onToggle={toggle} />
+        </div>
+        <div>
+          <div className="text-sm text-gray-600 mb-2">Who paid?</div>
+          <select className="input w-full max-w-sm" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
+            <option value="">Select payer (optional)</option>
+            {selected.map((id) => {
+              const c = (contactsCache.find?.((x: any) => x.id === id) as any) || { name: id };
+              return <option key={id} value={id}>{c.name || id}</option>;
+            })}
+          </select>
         </div>
         <div className="flex items-center gap-4">
           <label className="flex items-center gap-2 text-sm">

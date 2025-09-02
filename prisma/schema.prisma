@@ -22,6 +22,7 @@ model Contact {
   cashapp      String?
   createdAt    DateTime @default(now())
   participants BillParticipant[]
+  paidBills    Bill[] @relation("BillPaidBy")
 }
 
 model Bill {
@@ -32,11 +33,14 @@ model Bill {
   subtotalCents  Int
   taxRatePct     Float    @default(0)
   tipRatePct     Float    @default(0)
+  convenienceFeeRatePct Float @default(0)
   currency       String   @default("USD")
   taxMode        TaxMode  @default(GLOBAL)
   createdAt      DateTime @default(now())
   participants   BillParticipant[]
   items          Item[]
+  paidByContactId String?
+  paidBy          Contact? @relation("BillPaidBy", fields: [paidByContactId], references: [id])
 }
 
 model BillParticipant {

@@ -13,6 +13,7 @@ export async function GET() {
       subtotalCents: true,
       taxRatePct: true,
       tipRatePct: true,
+      convenienceFeeRatePct: true,
       currency: true,
     },
   });
