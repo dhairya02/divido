@@ -24,9 +24,7 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   const session = await getServerSession(authOptions);
   return (
     <html lang="en">
@@ -42,12 +40,12 @@ export default async function RootLayout({
                 <HistoryNav />
                 {session ? (
                   <form action={async () => { "use server"; const { signOut } = await import("next-auth/react"); await signOut({ redirect: false }); }}>
-                    <Link href="/api/auth/signout" className="btn">Logout</Link>
+                    <Link href="/api/auth/signout" className="btn" style={{ backgroundColor: "#ffffff", color: "#1f2937" }}>Logout</Link>
                   </form>
                 ) : (
                   <>
-                    <Link href="/login" className="btn">Login</Link>
-                    <Link href="/register" className="btn">Register</Link>
+                    <Link href="/login" className="btn" style={{ backgroundColor: "#ffffff", color: "#1f2937" }}>Login</Link>
+                    <Link href="/register" className="btn" style={{ backgroundColor: "#ffffff", color: "#1f2937" }}>Register</Link>
                   </>
                 )}
               </div>

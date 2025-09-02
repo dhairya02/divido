@@ -4,6 +4,10 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/db";
 import bcrypt from "bcrypt";
 
+// Use a stable secret in dev to avoid JWT decryption errors if env var is missing
+const devFallbackSecret = "dev-secret-change-me"; // DO NOT use in production
+const authSecret = process.env.NEXTAUTH_SECRET || devFallbackSecret;
+
 export const authOptions: NextAuthOptions = {
   // Adapter is optional when using JWT strategy, but we keep it for future providers
   adapter: PrismaAdapter(prisma),
@@ -19,6 +23,7 @@ export const authOptions: NextAuthOptions = {
         const email = credentials?.email?.toLowerCase().trim();
         const password = credentials?.password ?? "";
         if (!email || !password) return null;
+        // Enforce unique email login
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user || !user.passwordHash) return null;
         const ok = await bcrypt.compare(password, user.passwordHash);
@@ -41,7 +46,7 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: authSecret,
 };
 
 
