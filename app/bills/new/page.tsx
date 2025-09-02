@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import ParticipantPicker from "@/components/ParticipantPicker";
+import { useSession } from "next-auth/react";
 
 type Contact = { id: string; name: string };
 
 export default function NewBillPage() {
+  const { data: session } = useSession();
   const [title, setTitle] = useState("");
   const [venue, setVenue] = useState("");
   const [subtotalDollars, setSubtotalDollars] = useState("0");
@@ -43,7 +45,10 @@ export default function NewBillPage() {
       if (data?.id) {
         location.href = `/bills/${data.id}`;
       } else {
-        throw new Error("Unexpected response from server");
+        // guest mode: persist to sessionStorage and navigate to a local bill view
+        const bill = { id: `guest-${Date.now()}`, title, venue, subtotalCents, taxRatePct, tipRatePct, taxMode, participants: selected };
+        sessionStorage.setItem("guestBill", JSON.stringify(bill));
+        location.href = `/bills/${bill.id}`;
       }
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong");

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import AddContactDialog from "@/components/AddContactDialog";
 import EditContactDialog from "@/components/EditContactDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -15,6 +16,7 @@ type Contact = {
 };
 
 export default function ContactsPage() {
+  const { data: session } = useSession();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [form, setForm] = useState<Partial<Contact>>({ name: "" });
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -31,8 +33,8 @@ export default function ContactsPage() {
   };
 
   useEffect(() => {
-    load();
-  }, []);
+    if (session) load();
+  }, [session]);
 
   const submit = async (e: React.FormEvent) => { e.preventDefault(); setDialogOpen(true); };
 
@@ -63,7 +65,7 @@ export default function ContactsPage() {
       </div>
 
       <div className="divide-y border rounded">
-        {sorted.map((c) => (
+        {(session ? sorted : contacts).map((c) => (
           <details key={c.id} className="group">
             <summary className="flex items-center justify-between px-4 py-3 cursor-pointer select-none">
               <div className="flex items-center gap-3">
@@ -94,6 +96,9 @@ export default function ContactsPage() {
       </div>
 
       <AddContactDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onAdded={load} />
+      {!session && (
+        <div className="text-xs text-gray-500">You are in guest mode. Contacts are stored locally and will be cleared when you close the tab. <a className="underline" href="/register">Create an account</a> to save them.</div>
+      )}
       <EditContactDialog open={editOpen} contact={selectedContact} onClose={() => setEditOpen(false)} onSaved={load} />
       <ContactDetailDialog open={detailOpen} contact={selectedContact} onClose={() => setDetailOpen(false)} />
       <ConfirmDialog

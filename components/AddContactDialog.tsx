@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
+import { useSession } from "next-auth/react";
 
 type Props = {
   open: boolean;
@@ -9,6 +10,7 @@ type Props = {
 };
 
 export default function AddContactDialog({ open, onClose, onAdded }: Props) {
+  const { data: session } = useSession();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -17,6 +19,7 @@ export default function AddContactDialog({ open, onClose, onAdded }: Props) {
   const [cashapp, setCashapp] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [guestContacts, setGuestContacts] = useState<any[]>([]);
 
   const reset = () => {
     setFirstName("");
@@ -32,22 +35,38 @@ export default function AddContactDialog({ open, onClose, onAdded }: Props) {
     setErrorMsg(null);
     try {
       const fullName = `${firstName} ${lastName}`.trim();
-      const res = await fetch("/api/contacts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: fullName, email, phone, venmo, cashapp }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Failed to add contact");
-      reset();
-      await onAdded();
-      onClose();
+      if (session) {
+        const res = await fetch("/api/contacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: fullName, email, phone, venmo, cashapp }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || "Failed to add contact");
+        reset();
+        await onAdded();
+        onClose();
+      } else {
+        // guest mode: store locally in memory and sessionStorage
+        const next = [...guestContacts, { id: crypto.randomUUID(), name: fullName, email, phone, venmo, cashapp }];
+        setGuestContacts(next);
+        sessionStorage.setItem("guestContacts", JSON.stringify(next));
+        reset();
+        onClose();
+      }
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (!session) {
+      const raw = sessionStorage.getItem("guestContacts");
+      setGuestContacts(raw ? JSON.parse(raw) : []);
+    }
+  }, [session]);
 
   return (
     <Modal
@@ -71,6 +90,7 @@ export default function AddContactDialog({ open, onClose, onAdded }: Props) {
         <input className="input" placeholder="Venmo (optional)" value={venmo} onChange={(e) => setVenmo(e.target.value)} />
         <input className="input" placeholder="Cash App (optional)" value={cashapp} onChange={(e) => setCashapp(e.target.value)} />
         {errorMsg && <div className="text-red-600 text-sm sm:col-span-2">{errorMsg}</div>}
+        {!session && <div className="text-xs text-gray-500 sm:col-span-2">Guest contact (not saved to server).</div>}
       </div>
     </Modal>
   );

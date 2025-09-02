@@ -2,11 +2,16 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import Money from "@/components/Money";
 import { revalidatePath } from "next/cache";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function BillsHistoryPage() {
+  const session = await getServerSession(authOptions);
+  const where = session ? { userId: (session.user as any).id } : { id: "__none__" } as any;
   const bills = await prisma.bill.findMany({
+    where,
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
