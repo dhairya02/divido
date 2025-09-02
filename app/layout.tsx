@@ -7,8 +7,7 @@ import Logo from "@/components/Logo";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import Providers from "@/components/Providers";
-import dynamic from "next/dynamic";
-const AccountMenu = dynamic(() => import("@/components/AccountMenu"), { ssr: false });
+import AccountMenu from "@/components/AccountMenu";
 
 const garamond = EB_Garamond({
   variable: "--font-body",
