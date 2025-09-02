@@ -40,11 +40,12 @@ export default function ParticipantPicker({
     const name = tempName.trim();
     if (!name) return;
     const id = `temp-${crypto.randomUUID()}`;
-    const next = [...contacts, { id, name }];
+    const next = [{ id, name }, ...contacts];
     setContacts(next);
     onContactsChange?.(next);
     setTempMap((m) => ({ ...m, [id]: name }));
     setTempName("");
+    setQuery("");
     onToggle(id);
   };
 
