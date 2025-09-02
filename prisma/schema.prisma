@@ -71,6 +71,7 @@ model Contact {
   venmo        String?
   cashapp      String?
   createdAt    DateTime @default(now())
+  isTemporary  Boolean  @default(false)
   participants BillParticipant[]
   paidBills    Bill[] @relation("BillPaidBy")
   userId       String?

@@ -6,6 +6,7 @@ export const contactCreateSchema = z.object({
   phone: z.string().optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
   venmo: z.string().optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
   cashapp: z.string().optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
+  isTemporary: z.boolean().optional(),
 });
 
 export const contactUpdateSchema = z.object({

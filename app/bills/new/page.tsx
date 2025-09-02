@@ -50,7 +50,7 @@ export default function NewBillPage() {
             const cRes = await fetch("/api/contacts", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name }),
+              body: JSON.stringify({ name, isTemporary: true }),
             });
             const cData = await cRes.json();
             if (cRes.status === 401) throw new Error("Please log in to create a bill.");
