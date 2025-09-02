@@ -13,7 +13,7 @@ export default function HistoryNav() {
         onClick={() => router.back()}
         title="Back"
       >
-        <span aria-hidden style={{ fontSize: "1rem", lineHeight: 1 }}>←</span>
+        <span aria-hidden style={{ fontSize: "1rem", lineHeight: 1, color: "#1f2937", fontWeight: 700 }}>←</span>
       </button>
       <button
         type="button"
@@ -23,7 +23,7 @@ export default function HistoryNav() {
         onClick={() => router.forward?.()}
         title="Forward"
       >
-        <span aria-hidden style={{ fontSize: "1rem", lineHeight: 1 }}>→</span>
+        <span aria-hidden style={{ fontSize: "1rem", lineHeight: 1, color: "#1f2937", fontWeight: 700 }}>→</span>
       </button>
     </div>
   );
