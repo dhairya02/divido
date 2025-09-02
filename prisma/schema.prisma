@@ -20,8 +20,8 @@ model User {
   accounts      Account[]
   sessions      Session[]
   // App-owned rows (optional scoping for now)
-  bills         Bill[]
-  contacts      Contact[]
+  bills         Bill[]    @relation("UserBills")
+  contacts      Contact[] @relation("UserContacts")
 }
 
 model Account {
@@ -73,6 +73,8 @@ model Contact {
   createdAt    DateTime @default(now())
   participants BillParticipant[]
   paidBills    Bill[] @relation("BillPaidBy")
+  userId       String?
+  user         User?   @relation("UserContacts", fields: [userId], references: [id])
 }
 
 model Bill {
@@ -91,6 +93,8 @@ model Bill {
   items          Item[]
   paidByContactId String?
   paidBy          Contact? @relation("BillPaidBy", fields: [paidByContactId], references: [id])
+  userId         String?
+  user           User? @relation("UserBills", fields: [userId], references: [id])
 }
 
 model BillParticipant {
