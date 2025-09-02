@@ -43,14 +43,15 @@ export default function ParticipantPicker({
     const next = [...contacts, { id, name }];
     setContacts(next);
     onContactsChange?.(next);
-    setTempMap((m) => {
-      const nm = { ...m, [id]: name };
-      onTempMapChange?.(nm);
-      return nm;
-    });
+    setTempMap((m) => ({ ...m, [id]: name }));
     setTempName("");
     onToggle(id);
   };
+
+  // Notify parent about temp name mapping changes outside of render path
+  useEffect(() => {
+    if (onTempMapChange) onTempMapChange(tempMap);
+  }, [tempMap, onTempMapChange]);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
