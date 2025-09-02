@@ -7,6 +7,7 @@ export type CalcInput = {
   taxRatePct: number;
   tipRatePct: number;
   taxMode?: "GLOBAL" | "ITEM";
+  convenienceFeeRatePct?: number;
 };
 
 export type CalcOutput = {
@@ -14,6 +15,7 @@ export type CalcOutput = {
     subtotalCents: number;
     taxCents: number;
     tipCents: number;
+    convenienceFeeCents: number;
     grandTotalCents: number;
   };
   participants: {
@@ -31,7 +33,7 @@ export type CalcOutput = {
 };
 
 export function calculateSplit(input: CalcInput): CalcOutput {
-  const { items, participants, shares, taxRatePct, tipRatePct, taxMode = "GLOBAL" } = input;
+  const { items, participants, shares, taxRatePct, tipRatePct, taxMode = "GLOBAL", convenienceFeeRatePct = 0 } = input;
 
   // 1. Subtotal
   const subtotalCents = items.reduce((acc, it) => acc + it.priceCents, 0);
@@ -138,26 +140,30 @@ export function calculateSplit(input: CalcInput): CalcOutput {
     return floors;
   };
 
+  const feeCents = roundHalfUp((subtotalCents * convenienceFeeRatePct) / 100);
   const taxAlloc = poolAllocate(taxCents);
   const tipAlloc = poolAllocate(tipCents);
+  const feeAlloc = poolAllocate(feeCents);
 
   const participantsOut = preTaxTotals.map((pt, idx) => {
     const tax = taxAlloc[idx];
     const tip = tipAlloc[idx];
-    const total = pt.preTaxCents + tax + tip;
+    const fee = feeAlloc[idx];
+    const total = pt.preTaxCents + tax + tip + fee;
     return {
       participantId: pt.participantId,
       name: pt.name,
       preTaxCents: pt.preTaxCents,
       taxCents: tax,
       tipCents: tip,
+      convenienceFeeCents: fee,
       totalOwedCents: total,
     };
   });
 
   // 8. Assert exactness
   const sumOwed = participantsOut.reduce((acc, p) => acc + p.totalOwedCents, 0);
-  const grandTotal = subtotalCents + taxCents + tipCents;
+  const grandTotal = subtotalCents + taxCents + tipCents + feeCents;
   assert(sumOwed === grandTotal, "Totals do not add up exactly.");
 
   return {
@@ -165,6 +171,7 @@ export function calculateSplit(input: CalcInput): CalcOutput {
       subtotalCents,
       taxCents,
       tipCents,
+      convenienceFeeCents: feeCents,
       grandTotalCents: grandTotal,
     },
     participants: participantsOut,

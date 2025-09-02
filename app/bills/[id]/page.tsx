@@ -5,14 +5,14 @@
  * - Per-item share editor with click-to-select participants and adjustable weights
  * - Calculate split and present per-person table + item matrix with summary footers
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import ItemShareEditor from "@/components/ItemShareEditor";
 import Money from "@/components/Money";
 import ReceiptOCR from "@/components/ReceiptOCR";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import AlertDialog from "@/components/AlertDialog";
-import { BreakdownByPerson, ItemsByPerson } from "@/components/Charts";
+import html2canvas from "html2canvas";
 
 type Participant = { id: string; name: string };
 type Item = { id: string; name: string; priceCents: number };
@@ -34,6 +34,7 @@ export default function BillDetailPage() {
   const [newItemQty, setNewItemQty] = useState<number>(1);
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [savedItems, setSavedItems] = useState<Record<string, boolean>>({});
 
   const load = async () => {
     const data = await fetch(`/api/bills/${billId}`).then((r) => r.json());
@@ -122,6 +123,23 @@ export default function BillDetailPage() {
 
   const [calcResult, setCalcResult] = useState<any | null>(null);
   const [alert, setAlert] = useState<{ open: boolean; title?: string; message?: string }>({ open: false });
+  const exportRef = useRef<HTMLDivElement | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const exportPNG = async () => {
+    if (!exportRef.current) return;
+    try {
+      setExporting(true);
+      const canvas = await html2canvas(exportRef.current, { backgroundColor: "#ffffff", scale: 2 });
+      const link = document.createElement("a");
+      link.download = `${bill?.title || "bill"}-by-item.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch (err) {
+      setAlert({ open: true, title: "Export failed", message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -133,23 +151,10 @@ export default function BillDetailPage() {
           </div>
         </div>
       )}
-
+      <hr className="border-t border-black/10 dark:border-white/10" />
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Items</h2>
-        <AddParticipants billId={billId} existingContactIds={participantContactIds} onAdded={load} />
-        <ReceiptOCR
-          onItems={async (items) => {
-            for (const it of items) {
-              const priceCents = Math.round(it.price * 100);
-              await fetch(`/api/bills/${billId}/items`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: it.name, priceCents }),
-              });
-            }
-            await load();
-          }}
-        />
+        <hr className="border-t border-black/10 dark:border-white/10" />
         <form onSubmit={addItem} className="flex gap-2 items-center flex-wrap">
           <input className="input" placeholder="Item name" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} required />
           <input className="input w-40" type="number" step="0.01" placeholder="Price (e.g., 12.34)" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} />
@@ -169,9 +174,29 @@ export default function BillDetailPage() {
           <button className="btn-primary" type="submit" disabled={adding}>{adding ? "Adding..." : "Add"}</button>
           {addError && <span className="text-red-600 text-sm">{addError}</span>}
         </form>
+        <hr className="border-t border-black/10 dark:border-white/10" />
+        <ReceiptOCR
+          onItems={async (items) => {
+            for (const it of items) {
+              const priceCents = Math.round(it.price * 100);
+              await fetch(`/api/bills/${billId}/items`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: it.name, priceCents }),
+              });
+            }
+            await load();
+          }}
+        />
+        <hr className="border-t border-black/10 dark:border-white/10" />
+        <AddParticipants billId={billId} existingContactIds={participantContactIds} onAdded={load} />
+        <hr className="border-t border-black/10 dark:border-white/10" />
         <div className="space-y-3 max-h-[70vh] overflow-auto pr-2">
           {items.map((it) => (
-            <div key={it.id} className="space-y-2">
+            <div
+              key={it.id}
+              className={`space-y-2 rounded border border-black/20 dark:border-white/20 p-3 ${savedItems[it.id] ? "bg-black/[.04] dark:bg-white/[.06]" : ""}`}
+            >
               <div className="flex justify-between items-center gap-3">
                 <div className="flex items-center gap-2">
                   <input
@@ -240,60 +265,45 @@ export default function BillDetailPage() {
                   <button className="btn" onClick={() => deleteItem(it.id)} type="button">Delete</button>
                 </div>
               </div>
-              <ItemShareEditor
-                itemId={it.id}
-                participants={participants}
-                existingShares={shares.filter((s) => s.itemId === it.id)}
-                billId={billId}
-              />
+              <div className="border-t border-dashed border-black/20 dark:border-white/20 my-2" />
+              <div className="rounded border border-black/15 dark:border-white/15 p-2 bg-black/[.01] dark:bg-white/[.02]">
+                <ItemShareEditor
+                  itemId={it.id}
+                  participants={participants}
+                  existingShares={shares.filter((s) => s.itemId === it.id)}
+                  billId={billId}
+                  onSaved={() => setSavedItems((s) => ({ ...s, [it.id]: true }))}
+                />
+              </div>
             </div>
           ))}
         </div>
       </section>
-
+      <hr className="border-t border-black/10 dark:border-white/10" />
       <div>
         <button className="btn-primary" onClick={calc} type="button">Calculate split</button>
       </div>
-
+      <hr className="border-t border-black/10 dark:border-white/10" />
       {calcResult && (
         <section className="space-y-2">
           <h2 className="text-xl font-semibold">Summary</h2>
-          <div className="text-sm">Subtotal <Money cents={calcResult.billTotals.subtotalCents} /> · Tax <Money cents={calcResult.billTotals.taxCents} /> · Tip <Money cents={calcResult.billTotals.tipCents} /> · Total <Money cents={calcResult.billTotals.grandTotalCents} /></div>
-          <BreakdownByPerson data={calcResult.participants.map((p: any) => ({ name: p.name, preTaxCents: p.preTaxCents, taxCents: p.taxCents, tipCents: p.tipCents }))} />
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left border-b">
-                <th className="py-2">Person</th>
-                <th>Pre-tax</th>
-                <th>Tax</th>
-                <th>Tip</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {calcResult.participants.map((p: any) => (
-                <tr key={p.participantId} className="border-b">
-                  <td className="py-2">{p.name}</td>
-                  <td><Money cents={p.preTaxCents} /></td>
-                  <td><Money cents={p.taxCents} /></td>
-                  <td><Money cents={p.tipCents} /></td>
-                  <td><Money cents={p.totalOwedCents} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Item-by-person matrix */}
-          <h3 className="text-xl font-semibold mt-4">By item</h3>
-          <div className="overflow-auto">
-            <table className="w-full text-base border rounded">
+          {/* Export composition wrapper: logo + title/venue + table */}
+          <div className="space-y-3 p-4 rounded border" ref={exportRef} style={{ backgroundColor: "#ffffff", color: "#111827", borderColor: "#e5e7eb" }}>
+            <div className="flex items-center gap-3">
+              <img src="/restaurantsplit-high-resolution-logo.png" alt="Divido" className="h-8 w-8 object-contain" />
+              <div className="text-xl font-semibold" style={{ color: "#111827" }}>{bill?.title || "Bill"}</div>
+            </div>
+            <div className="text-sm" style={{ color: "#374151" }}>
+              {bill?.venue ? `${bill.venue} · ` : ""}Subtotal <Money cents={calcResult.billTotals.subtotalCents} /> · Tax <Money cents={calcResult.billTotals.taxCents} /> · Tip <Money cents={calcResult.billTotals.tipCents} /> · Conv. fee <Money cents={calcResult.billTotals.convenienceFeeCents} /> · Total <Money cents={calcResult.billTotals.grandTotalCents} />
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "16px", border: "1px solid #e5e7eb" }}>
               <thead>
-                <tr className="border-b" style={{ backgroundColor: "var(--color-primary)", color: "#fff" }}>
-                  <th className="px-4 py-3 text-left">Item</th>
+                <tr style={{ backgroundColor: "#6f8bff", color: "#ffffff" }}>
+                  <th style={{ padding: "12px", textAlign: "left", border: "1px solid #e5e7eb" }}>Item</th>
                   {participants.map((p) => (
-                    <th key={p.id} className="px-4 py-3 text-right">{p.name}</th>
+                    <th key={p.id} style={{ padding: "12px", textAlign: "right", border: "1px solid #e5e7eb" }}>{p.name}</th>
                   ))}
-                  <th className="px-4 py-3 text-right">Item total</th>
+                  <th style={{ padding: "12px", textAlign: "right", border: "1px solid #e5e7eb" }}>Item total</th>
                 </tr>
               </thead>
               <tbody>
@@ -301,66 +311,73 @@ export default function BillDetailPage() {
                   const row = calcResult.byItem.find((x: any) => x.itemId === it.id);
                   const total = row ? row.allocations.reduce((a: number, r: any) => a + r.cents, 0) : 0;
                   return (
-                    <tr key={it.id} className={`border-b ${idx % 2 === 0 ? "bg-black/[.025] dark:bg-white/[.04]" : ""}`}>
-                      <td className="px-4 py-2">{it.name}</td>
+                    <tr key={it.id} style={{ backgroundColor: idx % 2 === 0 ? "#f8fafc" : "#ffffff" }}>
+                      <td style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "left" }}>{it.name}</td>
                       {participants.map((p) => {
                         const cents = row?.allocations.find((r: any) => r.participantId === p.id)?.cents ?? 0;
-                        return <td key={p.id} className="px-4 py-2 text-right">{cents === 0 ? "-" : <Money cents={cents} />}</td>;
+                        return <td key={p.id} style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "right" }}>{cents === 0 ? "-" : <Money cents={cents} />}</td>;
                       })}
-                      <td className="px-4 py-2 text-right">{total === 0 ? "-" : <Money cents={total} />}</td>
+                      <td style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "right" }}>{total === 0 ? "-" : <Money cents={total} />}</td>
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
-                <tr className="font-medium" style={{ backgroundColor: "var(--color-accent)" }}>
-                  <td className="px-4 py-2">Subtotal per person</td>
+                <tr style={{ backgroundColor: "#e8ffa3", fontWeight: 500 }}>
+                  <td style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "left" }}>Subtotal per person</td>
                   {participants.map((p) => {
                     const val = calcResult.participants.find((x: any) => x.participantId === p.id)?.preTaxCents ?? 0;
-                    return <td key={p.id} className="px-4 py-2 text-right"><Money cents={val} /></td>;
+                    return <td key={p.id} style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "right" }}><Money cents={val} /></td>;
                   })}
-                  <td className="px-4 py-2 text-right"><Money cents={calcResult.billTotals.subtotalCents} /></td>
+                  <td style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "right" }}><Money cents={calcResult.billTotals.subtotalCents} /></td>
                 </tr>
-                <tr className="font-medium">
-                  <td className="px-4 py-2">Tax</td>
+                <tr style={{ fontWeight: 500 }}>
+                  <td style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "left" }}>Tax</td>
                   {participants.map((p) => {
                     const val = calcResult.participants.find((x: any) => x.participantId === p.id)?.taxCents ?? 0;
-                    return <td key={p.id} className="px-4 py-2 text-right"><Money cents={val} /></td>;
+                    return <td key={p.id} style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "right" }}><Money cents={val} /></td>;
                   })}
-                  <td className="px-4 py-2 text-right"><Money cents={calcResult.billTotals.taxCents} /></td>
+                  <td style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "right" }}><Money cents={calcResult.billTotals.taxCents} /></td>
                 </tr>
-                <tr className="font-medium" style={{ backgroundColor: "var(--color-muted)" }}>
-                  <td className="px-4 py-2">Total with tax</td>
+                <tr style={{ backgroundColor: "#b794d9", fontWeight: 500 }}>
+                  <td style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "left" }}>Total with tax</td>
                   {participants.map((p) => {
                     const part = calcResult.participants.find((x: any) => x.participantId === p.id);
                     const val = (part?.preTaxCents ?? 0) + (part?.taxCents ?? 0);
-                    return <td key={p.id} className="px-4 py-2 text-right"><Money cents={val} /></td>;
+                    return <td key={p.id} style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "right" }}><Money cents={val} /></td>;
                   })}
-                  <td className="px-4 py-2 text-right"><Money cents={calcResult.billTotals.subtotalCents + calcResult.billTotals.taxCents} /></td>
+                  <td style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "right" }}><Money cents={calcResult.billTotals.subtotalCents + calcResult.billTotals.taxCents} /></td>
                 </tr>
-                <tr className="font-medium">
-                  <td className="px-4 py-2">Tip</td>
+                <tr style={{ fontWeight: 500 }}>
+                  <td style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "left" }}>Tip</td>
                   {participants.map((p) => {
                     const val = calcResult.participants.find((x: any) => x.participantId === p.id)?.tipCents ?? 0;
-                    return <td key={p.id} className="px-4 py-2 text-right"><Money cents={val} /></td>;
+                    return <td key={p.id} style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "right" }}><Money cents={val} /></td>;
                   })}
-                  <td className="px-4 py-2 text-right"><Money cents={calcResult.billTotals.tipCents} /></td>
+                  <td style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "right" }}><Money cents={calcResult.billTotals.tipCents} /></td>
                 </tr>
-                <tr className="font-semibold" style={{ backgroundColor: "var(--color-primary)", color: "#fff" }}>
-                  <td className="px-4 py-2">Total with tip</td>
+                <tr style={{ fontWeight: 500 }}>
+                  <td style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "left" }}>Convenience fee</td>
+                  {participants.map((p) => {
+                    const val = calcResult.participants.find((x: any) => x.participantId === p.id)?.convenienceFeeCents ?? 0;
+                    return <td key={p.id} style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "right" }}><Money cents={val} /></td>;
+                  })}
+                  <td style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "right" }}><Money cents={calcResult.billTotals.convenienceFeeCents} /></td>
+                </tr>
+                <tr style={{ backgroundColor: "#6f8bff", color: "#ffffff", fontWeight: 600 }}>
+                  <td style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "left" }}>Total with tip</td>
                   {participants.map((p) => {
                     const val = calcResult.participants.find((x: any) => x.participantId === p.id)?.totalOwedCents ?? 0;
-                    return <td key={p.id} className="px-4 py-2 text-right"><Money cents={val} /></td>;
+                    return <td key={p.id} style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "right" }}><Money cents={val} /></td>;
                   })}
-                  <td className="px-4 py-2 text-right"><Money cents={calcResult.billTotals.grandTotalCents} /></td>
+                  <td style={{ padding: "8px", border: "1px solid #e5e7eb", textAlign: "right" }}><Money cents={calcResult.billTotals.grandTotalCents} /></td>
                 </tr>
               </tfoot>
             </table>
           </div>
-          <ItemsByPerson
-            participants={participants}
-            byItem={calcResult.byItem.map((bi: any) => ({ ...bi, itemName: items.find((it) => it.id === bi.itemId)?.name }))}
-          />
+          <div>
+            <button className="btn" type="button" onClick={exportPNG} disabled={exporting}>{exporting ? "Exporting..." : "Export table as PNG"}</button>
+          </div>
         </section>
       )}
 

@@ -25,6 +25,8 @@ export const billCreateSchema = z.object({
   currency: z.string().default("USD").optional(),
   taxMode: z.enum(["GLOBAL", "ITEM"]).default("GLOBAL").optional(),
   participantContactIds: z.array(z.string()).optional(),
+  convenienceFeeRatePct: z.number().nonnegative().optional(),
+  paidByContactId: z.string().optional(),
 });
 
 export const itemCreateSchema = z.object({

@@ -19,11 +19,13 @@ export default function ItemShareEditor({
   participants,
   existingShares,
   billId,
+  onSaved,
 }: {
   itemId: string;
   participants: Participant[];
   existingShares: Share[];
   billId: string;
+  onSaved?: () => void;
 }) {
   const initial: Record<string, number> = {};
   for (const p of participants) {
@@ -51,10 +53,11 @@ export default function ItemShareEditor({
         })
       )
     );
+    onSaved?.();
   };
 
   return (
-    <div className="flex flex-col gap-2 border rounded p-3">
+    <div className="flex flex-col gap-2">
       <div className="flex gap-3 flex-wrap items-center">
         {participants.map((p) => {
           const selected = (weights[p.id] ?? 0) > 0;

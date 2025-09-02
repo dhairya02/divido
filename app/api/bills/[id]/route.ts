@@ -39,4 +39,13 @@ export async function DELETE(_: Request, { params }: Params) {
   return NextResponse.json({ ok: true });
 }
 
+export async function PATCH(req: Request, { params }: Params) {
+  const { id } = await params;
+  const body = await req.json().catch(() => ({}));
+  const { paidByContactId } = body as { paidByContactId?: string };
+  if (!paidByContactId) return NextResponse.json({ error: "paidByContactId required" }, { status: 400 });
+  await prisma.bill.update({ where: { id }, data: { paidByContactId } });
+  return NextResponse.json({ ok: true });
+}
+
 
