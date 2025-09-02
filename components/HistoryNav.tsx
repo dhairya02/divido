@@ -7,21 +7,21 @@ export default function HistoryNav() {
     <div className="flex items-center gap-2">
       <button
         type="button"
-        aria-label="Fork"
+        aria-label="Back"
         className="btn"
         onClick={() => router.back()}
         title="Back"
       >
-        <span style={{ display: "inline-block", transform: "rotate(-90deg)" }}>🍴</span>
+        <span aria-hidden>←</span>
       </button>
       <button
         type="button"
-        aria-label="Spoon"
+        aria-label="Forward"
         className="btn"
         onClick={() => router.forward?.()}
         title="Forward"
       >
-        <span style={{ display: "inline-block", transform: "rotate(90deg)" }}>🥄</span>
+        <span aria-hidden>→</span>
       </button>
     </div>
   );
