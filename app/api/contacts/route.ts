@@ -25,6 +25,11 @@ export async function POST(req: Request) {
     if (!user) return NextResponse.json({ error: "Session expired. Please log in again." }, { status: 401 });
 
     const data = contactCreateSchema.parse(await req.json());
+    // Prevent duplicate self-contact by email
+    if (data.email) {
+      const existing = await prisma.contact.findFirst({ where: { userId, email: data.email } });
+      if (existing) return NextResponse.json(existing, { status: 200 });
+    }
     const created = await prisma.contact.create({ data: { ...data, isTemporary: data.isTemporary ?? false, userId } });
     return NextResponse.json(created, { status: 201 });
   } catch (err: unknown) {

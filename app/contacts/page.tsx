@@ -26,10 +26,17 @@ export default function ContactsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [bulk, setBulk] = useState<Record<string, boolean>>({});
   const [detailOpen, setDetailOpen] = useState(false);
+  const [selfContactId, setSelfContactId] = useState<string | null>(null);
+  const [selfEmail, setSelfEmail] = useState<string | null>(null);
 
   const load = async () => {
-    const res = await fetch("/api/contacts");
-    setContacts(await res.json());
+    const [list, me] = await Promise.all([
+      fetch("/api/contacts").then((r) => r.json()),
+      fetch("/api/me/contact").then((r) => r.json()).catch(() => null),
+    ]);
+    setContacts(list);
+    if (me?.id) setSelfContactId(me.id);
+    if (me?.email) setSelfEmail(me.email);
   };
 
   useEffect(() => {
@@ -69,8 +76,8 @@ export default function ContactsPage() {
           <details key={c.id} className="group">
             <summary className="flex items-center justify-between px-4 py-3 cursor-pointer select-none">
               <div className="flex items-center gap-3">
-                <input type="checkbox" checked={!!bulk[c.id]} onChange={(e) => setBulk((b) => ({ ...b, [c.id]: e.target.checked }))} onClick={(e) => e.stopPropagation()} />
-                <button className="font-medium hover:underline" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedContact(c); setDetailOpen(true); }}> {c.name} </button>
+                <input type="checkbox" checked={!!bulk[c.id]} disabled={selfContactId === c.id || (!!selfEmail && c.email === selfEmail)} onChange={(e) => setBulk((b) => ({ ...b, [c.id]: e.target.checked }))} onClick={(e) => e.stopPropagation()} />
+                <button className="font-medium hover:underline" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedContact(c); setDetailOpen(true); }}> {c.name}{selfContactId === c.id ? " (You)" : ""} </button>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -78,11 +85,13 @@ export default function ContactsPage() {
                   className="btn"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedContact(c); setEditOpen(true); }}
                 >Edit</button>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteId(c.id); }}
-                >Delete</button>
+                {(selfContactId !== c.id && (!selfEmail || c.email !== selfEmail)) && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteId(c.id); }}
+                  >Delete</button>
+                )}
               </div>
             </summary>
             <div className="px-4 pb-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
@@ -121,8 +130,8 @@ export default function ContactsPage() {
           <button
             className="btn"
             onClick={async () => {
-              const ids = Object.entries(bulk).filter(([, v]) => v).map(([id]) => id);
-              await fetch('/api/contacts/bulk-delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+              const ids = Object.entries(bulk).filter(([, v]) => v).map(([id]) => id).filter((id) => id !== selfContactId);
+              for (const id of ids) await fetch(`/api/contacts/${id}`, { method: 'DELETE' });
               setBulk({});
               await load();
             }}

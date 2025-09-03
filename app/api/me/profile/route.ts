@@ -8,7 +8,12 @@ export async function PATCH(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const userId = (session.user as any).id as string;
   const { name } = await req.json().catch(() => ({}));
-  await prisma.user.update({ where: { id: userId }, data: { name } });
+  // Update user profile
+  const user = await prisma.user.update({ where: { id: userId }, data: { name } });
+  // Keep the user's self-contact in sync (identified by matching email)
+  if (user?.email) {
+    await prisma.contact.updateMany({ where: { userId, email: user.email }, data: { name } });
+  }
   return NextResponse.json({ ok: true });
 }
 

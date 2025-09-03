@@ -28,13 +28,18 @@ export default function ParticipantPicker({
   const [tempMap, setTempMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    let cancelled = false;
     fetch("/api/contacts")
       .then((r) => r.json())
       .then((data) => {
+        if (cancelled) return;
         setContacts(data);
         onContactsChange?.(data);
       });
-  }, [onContactsChange]);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const addTemp = () => {
     const name = tempName.trim();
