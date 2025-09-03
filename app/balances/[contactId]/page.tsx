@@ -26,21 +26,21 @@ export default function BalanceDetailPage() {
         const calc = await fetch(`/api/bills/${b.id}/calc`).then((r) => r.json());
         const payer = b.paidByContactId as string | undefined;
         if (!calc || !payer) continue;
-        const p = calc.participants.find((x: any) => x.contactId === contactId);
-        if (!p || p.contactId === payer) continue;
-        out.push({ billTitle: b.title, billId: b.id, payerId: payer, payerName: nameMap[payer] || payer, cents: p.totalOwedCents });
+        const mePart = (me?.id ? calc.participants.find((x: any) => x.contactId === me.id) : null);
+        const selPart = calc.participants.find((x: any) => x.contactId === contactId);
+        // Only include bills where the payer is either me or the selected contact
+        if (payer === me?.id && selPart) {
+          out.push({ billTitle: b.title, billId: b.id, payerId: payer, payerName: nameMap[payer] || payer, cents: selPart.totalOwedCents });
+        } else if (payer === contactId && mePart) {
+          out.push({ billTitle: b.title, billId: b.id, payerId: payer, payerName: nameMap[payer] || payer, cents: -mePart.totalOwedCents });
+        }
       }
       setRows(out);
     })();
   }, [contactId]);
 
   const fmt = (cents: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(cents / 100);
-  const totals = useMemo(() => {
-    return rows.reduce((net, r) => {
-      if (meId && r.payerId === meId) return net + r.cents; // they owe me
-      return net - r.cents; // I owe them
-    }, 0);
-  }, [rows, meId]);
+  const totals = useMemo(() => rows.reduce((net, r) => net + r.cents, 0), [rows]);
 
   const signed = (cents: number) => `${cents >= 0 ? "+" : "-"}${fmt(Math.abs(cents))}`;
 
@@ -55,14 +55,14 @@ export default function BalanceDetailPage() {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.billId} className="border-b">
+          {rows.map((r, idx) => (
+            <tr key={r.billId} className="border-b" style={{ backgroundColor: idx % 2 === 0 ? "#f8fafc" : "#ffffff" }}>
               <td className="px-4 py-2"><Link className="underline" href={`/bills/${r.billId}`}>{r.billTitle}</Link></td>
-              <td className="px-4 py-2 text-right">{signed(meId && r.payerId === meId ? r.cents : -r.cents)}</td>
+              <td className="px-4 py-2 text-right">{signed(r.cents)}</td>
             </tr>
           ))}
           {rows.length === 0 && (
-            <tr><td colSpan={3} className="px-4 py-6">No items.</td></tr>
+            <tr><td colSpan={2} className="px-4 py-6">No items.</td></tr>
           )}
         </tbody>
         <tfoot>
