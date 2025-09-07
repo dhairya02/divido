@@ -1,11 +1,4 @@
 import { NextResponse } from "next/server";
-
-export async function POST() {
-  // Bulk deletion of contacts is disabled to preserve history
-  return NextResponse.json({ error: "Bulk contact deletion is disabled." }, { status: 405 });
-}
-
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 export async function POST(req: Request) {

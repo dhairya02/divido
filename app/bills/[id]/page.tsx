@@ -35,6 +35,8 @@ export default function BillDetailPage() {
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [savedItems, setSavedItems] = useState<Record<string, boolean>>({});
+  const [headerEdit, setHeaderEdit] = useState(false);
+  const [headerSaved, setHeaderSaved] = useState(false);
 
   const load = async () => {
     const data = await fetch(`/api/bills/${billId}`).then((r) => r.json());
@@ -168,8 +170,58 @@ export default function BillDetailPage() {
               </div>
             </div>
           </div>
-          <div className="text-sm text-gray-600">
-            {bill.venue ? `${bill.venue} · ` : ""}Subtotal: <Money cents={bill.subtotalCents} /> · Tax {bill.taxRatePct}% · Tip {bill.tipRatePct}%
+          <div className="text-sm text-gray-600 flex items-center gap-3 flex-wrap">
+            <span>{bill.venue ? `${bill.venue} · ` : ""}</span>
+            <button
+              className="btn text-xs"
+              onClick={() => setHeaderEdit((prev) => !prev)}
+              type="button"
+            >{headerEdit ? "Done" : "Edit"}</button>
+            {!headerEdit && (
+              <>
+                <span>Subtotal: <Money cents={bill.subtotalCents} /> · Tax {bill.taxRatePct}% · Tip {bill.tipRatePct}%</span>
+                {headerSaved && <span className="text-emerald-600">Saved</span>}
+              </>
+            )}
+            {headerEdit && (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget as HTMLFormElement;
+                  const sub = form.elements.namedItem("subtotal") as HTMLInputElement;
+                  const tax = form.elements.namedItem("tax") as HTMLInputElement;
+                  const tip = form.elements.namedItem("tip") as HTMLInputElement;
+                  const parsed = parseFloat((sub.value || "0").replace(/[^0-9.\-]/g, ""));
+                  const cents = Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+                  const taxNum = Number(tax.value || 0);
+                  const tipNum = Number(tip.value || 0);
+                  await fetch(`/api/bills/${billId}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ subtotalCents: cents, taxRatePct: taxNum, tipRatePct: tipNum }),
+                  });
+                  setHeaderSaved(true);
+                  setTimeout(() => setHeaderSaved(false), 1500);
+                  await load();
+                }}
+                className="flex items-center gap-2"
+              >
+                <label className="flex items-center gap-1">
+                  <span>Subtotal</span>
+                  <input name="subtotal" className="input w-24" defaultValue={(bill.subtotalCents / 100).toFixed(2)} type="text" />
+                </label>
+                <label className="flex items-center gap-1">
+                  <span>Tax %</span>
+                  <input name="tax" className="input w-16" defaultValue={String(bill.taxRatePct)} type="number" step="0.001" />
+                </label>
+                <label className="flex items-center gap-1">
+                  <span>Tip %</span>
+                  <input name="tip" className="input w-16" defaultValue={String(bill.tipRatePct)} type="number" step="0.1" />
+                </label>
+                <button className="btn text-xs" type="submit">Save</button>
+                {headerSaved && <span className="text-emerald-600">Saved</span>}
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -200,15 +252,28 @@ export default function BillDetailPage() {
         <hr className="border-t border-black/10 dark:border-white/10" />
         <ReceiptOCR
           onItems={async (items) => {
+            // Batch add parsed items sequentially; ignore failures per-line but surface a summary
+            const failures: string[] = [];
             for (const it of items) {
               const priceCents = Math.round(it.price * 100);
-              await fetch(`/api/bills/${billId}/items`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: it.name, priceCents }),
-              });
+              try {
+                const res = await fetch(`/api/bills/${billId}/items`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ name: it.name, priceCents, taxable: true, quantity: 1 }),
+                });
+                if (!res.ok) {
+                  const data = await res.json().catch(() => ({} as any));
+                  failures.push(`${it.name}: ${data?.error || res.status}`);
+                }
+              } catch (err) {
+                failures.push(`${it.name}: network error`);
+              }
             }
             await load();
+            if (failures.length > 0) {
+              setAlert({ open: true, title: "Some items could not be added", message: failures.join("\n") });
+            }
           }}
         />
         <hr className="border-t border-black/10 dark:border-white/10" />
