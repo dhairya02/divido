@@ -19,7 +19,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto p-6 space-y-4">
+    <div className="w-full p-6 space-y-4">
       <h1 className="text-2xl font-semibold">Log in</h1>
       <form onSubmit={submit} className="space-y-3">
         <input className="input w-full" placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />

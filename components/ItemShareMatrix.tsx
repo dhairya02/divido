@@ -42,6 +42,9 @@ export default function ItemShareMatrix({
   const [weights, setWeights] = useState<Matrix>(initialMatrix);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hoverRow, setHoverRow] = useState<string | null>(null);
+  const [hoverCol, setHoverCol] = useState<string | null>(null);
+  const [focusCell, setFocusCell] = useState<{ row: string; col: string } | null>(null);
 
   useEffect(() => {
     setWeights(initialMatrix);
@@ -108,33 +111,77 @@ export default function ItemShareMatrix({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-auto">
+      <div className="overflow-auto max-h-[70vh]">
         <table className="w-full min-w-[600px] border text-sm">
           <thead>
             <tr className="bg-slate-100 dark:bg-slate-800">
-              <th className="border px-3 py-2 text-left">Item</th>
-              <th className="border px-3 py-2 text-right">Price</th>
+              <th className="border px-3 py-2 text-left sticky left-0 top-0 z-30 bg-slate-100 dark:bg-slate-800">Item</th>
+              <th
+                className={`border px-3 py-2 text-right sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 ${hoverCol === "__price" ? "bg-indigo-100 dark:bg-indigo-900" : ""}`}
+                onMouseEnter={() => setHoverCol("__price")}
+                onMouseLeave={() => setHoverCol(null)}
+              >
+                Price
+              </th>
               {participants.map((participant) => (
-                <th key={participant.id} className="border px-3 py-2 text-center">
+                <th
+                  key={participant.id}
+                  className={`border px-3 py-2 text-center sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 ${hoverCol === participant.id ? "bg-indigo-100 dark:bg-indigo-900" : ""}`}
+                  onMouseEnter={() => setHoverCol(participant.id)}
+                  onMouseLeave={() => setHoverCol(null)}
+                >
                   {participant.name}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {items.map((item, idx) => (
-              <tr key={item.id} className={idx % 2 === 0 ? "bg-white dark:bg-slate-900/40" : "bg-slate-50 dark:bg-slate-900/20"}>
-                <td className="border px-3 py-2 text-left align-top">
-                  <div className="font-medium">{item.name}</div>
-                </td>
-                <td className="border px-3 py-2 text-right align-top">
-                  <Money cents={item.priceCents} />
-                </td>
+            {items.map((item, idx) => {
+              const rowBgClass = idx % 2 === 0 ? "bg-white dark:bg-slate-900/40" : "bg-slate-50 dark:bg-slate-900/20";
+              const rowHover = hoverRow === item.id;
+              const priceFocused = focusCell?.row === item.id && focusCell?.col === "__price";
+              return (
+                <tr
+                  key={item.id}
+                  className={`${rowBgClass} ${rowHover ? "bg-indigo-50/70 dark:bg-indigo-900/40" : ""}`}
+                  onMouseEnter={() => setHoverRow(item.id)}
+                  onMouseLeave={() => setHoverRow(null)}
+                >
+                  <td
+                    className={`border px-3 py-2 text-left align-top sticky left-0 z-20 ${rowBgClass} ${rowHover ? "bg-indigo-50/70 dark:bg-indigo-900/40" : ""}`}
+                  >
+                    <div className="font-medium">{item.name}</div>
+                  </td>
+                  <td
+                    className={`border px-3 py-2 text-right align-top ${hoverCol === "__price" || rowHover ? "bg-indigo-50/70 dark:bg-indigo-900/40" : ""} ${priceFocused ? "ring-2 ring-indigo-500 font-semibold" : ""}`}
+                    onMouseEnter={() => {
+                      setHoverCol("__price");
+                      setFocusCell({ row: item.id, col: "__price" });
+                    }}
+                    onMouseLeave={() => {
+                      if (hoverCol === "__price") setHoverCol(null);
+                      setFocusCell(null);
+                    }}
+                  >
+                    <Money cents={item.priceCents} />
+                  </td>
                 {participants.map((participant) => {
                   const current = weights[item.id]?.[participant.id] ?? 0;
                   const checked = current > 0;
+                  const active = hoverCol === participant.id || rowHover;
+                  const focused = focusCell?.row === item.id && focusCell?.col === participant.id;
                   return (
-                    <td key={participant.id} className="border px-3 py-2 align-top">
+                    <td
+                      key={participant.id}
+                      className={`border px-3 py-2 align-top ${rowBgClass} ${active ? "bg-indigo-50/70 dark:bg-indigo-900/40" : ""} ${focused ? "ring-2 ring-indigo-500 font-semibold" : ""}`}
+                      onMouseEnter={() => {
+                        setHoverCol(participant.id);
+                        setFocusCell({ row: item.id, col: participant.id });
+                      }}
+                      onMouseLeave={() => {
+                        setFocusCell(null);
+                      }}
+                    >
                       <label className="flex flex-col items-start gap-1 text-xs">
                         <span className="flex items-center gap-2 text-sm">
                           <input
@@ -158,8 +205,9 @@ export default function ItemShareMatrix({
                     </td>
                   );
                 })}
-              </tr>
-            ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

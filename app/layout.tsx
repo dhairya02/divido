@@ -30,9 +30,9 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className={`${garamond.variable} antialiased`}>
-        <div className="min-h-screen">
+        <div className="min-h-screen flex flex-col">
           <header className="sticky top-0 text-white border-b border-black/10" style={{ backgroundColor: "var(--color-primary)" }}>
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between">
+            <div className="w-full px-4 sm:px-8 py-2.5 flex items-center justify-between">
               <Link href="/" className="flex items-center gap-2 font-semibold text-lg" aria-label="Divido Home">
                 <Logo className="h-10 w-auto" />
                 <span className="hidden sm:inline text-[#E6FDA3] font-bold text-2xl">Divido</span>
@@ -51,7 +51,7 @@ export default async function RootLayout({
             </div>
           </header>
           <Providers>
-            <main>
+            <main className="flex-1 w-full">
               {children}
             </main>
           </Providers>

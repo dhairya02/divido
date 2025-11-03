@@ -93,7 +93,7 @@ export default function QuickSplitPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-6">
+    <div className="w-full p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Quick Split (equal)</h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="flex flex-col gap-1">
@@ -144,7 +144,7 @@ export default function QuickSplitPage() {
 
       <div>
         <div className="text-sm text-gray-600 mb-2">Who paid?</div>
-        <select className="input w-full max-w-sm" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
+        <select className="input w-full" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
           <option value="">Select payer (optional)</option>
           {participants.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>

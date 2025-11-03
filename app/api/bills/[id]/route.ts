@@ -42,23 +42,25 @@ export async function DELETE(_: Request, { params }: Params) {
 export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const { paidByContactId, subtotalCents, taxRatePct, tipRatePct } = body as {
+  const { paidByContactId, subtotalCents, taxRatePct, tipRatePct, convenienceFeeRatePct } = body as {
     paidByContactId?: string;
     subtotalCents?: number;
     taxRatePct?: number;
     tipRatePct?: number;
+    convenienceFeeRatePct?: number;
   };
 
   if (
     paidByContactId === undefined &&
     subtotalCents === undefined &&
     taxRatePct === undefined &&
-    tipRatePct === undefined
+    tipRatePct === undefined &&
+    convenienceFeeRatePct === undefined
   ) {
     return NextResponse.json({ error: "No updatable fields provided" }, { status: 400 });
   }
 
-  const data: { paidByContactId?: string; subtotalCents?: number; taxRatePct?: number; tipRatePct?: number } = {};
+  const data: { paidByContactId?: string; subtotalCents?: number; taxRatePct?: number; tipRatePct?: number; convenienceFeeRatePct?: number } = {};
   if (paidByContactId !== undefined) data.paidByContactId = paidByContactId;
   if (typeof subtotalCents === "number" && Number.isInteger(subtotalCents) && subtotalCents >= 0) {
     data.subtotalCents = subtotalCents;
@@ -68,6 +70,9 @@ export async function PATCH(req: Request, { params }: Params) {
   }
   if (typeof tipRatePct === "number" && Number.isFinite(tipRatePct) && tipRatePct >= 0) {
     data.tipRatePct = tipRatePct;
+  }
+  if (typeof convenienceFeeRatePct === "number" && Number.isFinite(convenienceFeeRatePct) && convenienceFeeRatePct >= 0) {
+    data.convenienceFeeRatePct = convenienceFeeRatePct;
   }
 
   await prisma.bill.update({ where: { id }, data });

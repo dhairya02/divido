@@ -62,7 +62,7 @@ export default function AccountPage() {
   };
 
   return (
-    <div className="max-w-xl mx-auto p-6 space-y-6">
+    <div className="w-full p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Account</h1>
       {msg && <div className="text-sm" style={{ color: msg.includes("Failed") ? "#dc2626" : "#065f46" }}>{msg}</div>}
       <section className="space-y-2">

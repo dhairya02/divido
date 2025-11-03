@@ -23,11 +23,11 @@ export default function BalanceDetailPage() {
       setPersonName(nameMap[contactId] || contactId);
       const out: { billTitle: string; billId: string; payerId: string; payerName: string; cents: number }[] = [];
       for (const b of bills as any[]) {
-        const calc = await fetch(`/api/bills/${b.id}/calc`).then((r) => r.json());
+        const calc = await fetch(`/api/bills/${b.id}/calc`).then((r) => r.json()).catch(() => null as any);
         const payer = b.paidByContactId as string | undefined;
-        if (!calc || !payer) continue;
-        const mePart = (me?.id ? calc.participants.find((x: any) => x.contactId === me.id) : null);
-        const selPart = calc.participants.find((x: any) => x.contactId === contactId);
+        if (!calc || calc?.error || !payer || !Array.isArray(calc.participants)) continue;
+        const mePart = (me?.id ? (calc.participants as any[]).find((x: any) => x.contactId === me.id) : null);
+        const selPart = (calc.participants as any[]).find((x: any) => x.contactId === contactId);
         // Only include bills where the payer is either me or the selected contact
         if (payer === me?.id && selPart) {
           out.push({ billTitle: b.title, billId: b.id, payerId: payer, payerName: nameMap[payer] || payer, cents: selPart.totalOwedCents });
@@ -45,7 +45,7 @@ export default function BalanceDetailPage() {
   const signed = (cents: number) => `${cents >= 0 ? "+" : "-"}${fmt(Math.abs(cents))}`;
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-4">
+    <div className="w-full p-6 space-y-4">
       <h1 className="text-2xl font-semibold">{personName}</h1>
       <table className="w-full text-base border rounded">
         <thead>

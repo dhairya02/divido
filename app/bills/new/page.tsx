@@ -89,7 +89,7 @@ export default function NewBillPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-6">
+    <div className="w-full p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">New Bill</h1>
         <a className="btn" href="/quick-split">Quick Split</a>
@@ -149,7 +149,7 @@ export default function NewBillPage() {
         </div>
         <div>
           <div className="text-sm text-gray-600 mb-2">Who paid?</div>
-          <select className="input w-full max-w-sm" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
+          <select className="input w-full" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
             <option value="">Select payer (optional)</option>
             {selected.map((id) => {
               const c = (contactsCache.find?.((x: any) => x.id === id) as any) || { name: tempMap[id] || id };

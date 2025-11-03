@@ -24,7 +24,7 @@ export default async function BillsHistoryPage() {
   });
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="w-full p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Bills</h1>
       <form action={async () => {
         "use server";

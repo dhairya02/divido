@@ -85,7 +85,7 @@ export default function BalancesPage() {
   const renderAmount = (cents: number) => `${cents >= 0 ? "+" : "-"}${fmt(Math.abs(cents))}`;
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-4">
+    <div className="w-full p-6 space-y-4">
       <h1 className="text-2xl font-semibold">Balances</h1>
       <table className="w-full text-base border rounded">
         <thead>
