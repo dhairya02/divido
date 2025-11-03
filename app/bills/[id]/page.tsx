@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import ItemShareEditor from "@/components/ItemShareEditor";
+import ItemShareMatrix from "@/components/ItemShareMatrix";
 import Money from "@/components/Money";
 import ReceiptOCR from "@/components/ReceiptOCR";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -26,6 +27,7 @@ export default function BillDetailPage() {
   const [participantContactIds, setParticipantContactIds] = useState<string[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [shares, setShares] = useState<Share[]>([]);
+  const [shareViewMode, setShareViewMode] = useState<"cards" | "table">("cards");
 
   const [newItemName, setNewItemName] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("0");
@@ -43,7 +45,7 @@ export default function BillDetailPage() {
     setBill(data.bill);
     setParticipants(data.participants.map((p: any) => ({ id: p.id, name: p.name, contactId: p.contactId })));
     setParticipantContactIds(data.participants.map((p: any) => p.contactId));
-    setItems(data.items);
+    setItems((data.items as Item[]).slice().reverse());
     setShares(data.shares);
   };
 
@@ -131,7 +133,21 @@ export default function BillDetailPage() {
     if (!exportRef.current) return;
     try {
       setExporting(true);
-      const canvas = await html2canvas(exportRef.current, { backgroundColor: "#ffffff", scale: 2 });
+      // Get the actual width of the content
+      const scrollWidth = exportRef.current.scrollWidth;
+      const scrollHeight = exportRef.current.scrollHeight;
+      
+      const canvas = await html2canvas(exportRef.current, { 
+        backgroundColor: "#ffffff", 
+        scale: 2,
+        windowWidth: scrollWidth,
+        windowHeight: scrollHeight,
+        width: scrollWidth,
+        height: scrollHeight,
+        scrollX: 0,
+        scrollY: 0,
+        useCORS: true,
+      });
       const link = document.createElement("a");
       link.download = `${bill?.title || "bill"}-by-item.png`;
       link.href = canvas.toDataURL("image/png");
@@ -179,7 +195,7 @@ export default function BillDetailPage() {
             >{headerEdit ? "Done" : "Edit"}</button>
             {!headerEdit && (
               <>
-                <span>Subtotal: <Money cents={bill.subtotalCents} /> · Tax {bill.taxRatePct}% · Tip {bill.tipRatePct}%</span>
+                <span>Subtotal: <Money cents={bill.subtotalCents} /> · Tax {bill.taxRatePct}% · Tip {bill.tipRatePct}% · Conv. fee {bill.convenienceFeeRatePct ?? 0}%</span>
                 {headerSaved && <span className="text-emerald-600">Saved</span>}
               </>
             )}
@@ -191,14 +207,16 @@ export default function BillDetailPage() {
                   const sub = form.elements.namedItem("subtotal") as HTMLInputElement;
                   const tax = form.elements.namedItem("tax") as HTMLInputElement;
                   const tip = form.elements.namedItem("tip") as HTMLInputElement;
+                  const conv = form.elements.namedItem("convfee") as HTMLInputElement;
                   const parsed = parseFloat((sub.value || "0").replace(/[^0-9.\-]/g, ""));
                   const cents = Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
                   const taxNum = Number(tax.value || 0);
                   const tipNum = Number(tip.value || 0);
+                  const convNum = Number(conv.value || 0);
                   await fetch(`/api/bills/${billId}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ subtotalCents: cents, taxRatePct: taxNum, tipRatePct: tipNum }),
+                    body: JSON.stringify({ subtotalCents: cents, taxRatePct: taxNum, tipRatePct: tipNum, convenienceFeeRatePct: convNum }),
                   });
                   setHeaderSaved(true);
                   setTimeout(() => setHeaderSaved(false), 1500);
@@ -218,6 +236,10 @@ export default function BillDetailPage() {
                   <span>Tip %</span>
                   <input name="tip" className="input w-16" defaultValue={String(bill.tipRatePct)} type="number" step="0.1" />
                 </label>
+                <label className="flex items-center gap-1">
+                  <span>Conv. fee %</span>
+                  <input name="convfee" className="input w-16" defaultValue={String(bill.convenienceFeeRatePct ?? 0)} type="number" step="0.1" />
+                </label>
                 <button className="btn text-xs" type="submit">Save</button>
                 {headerSaved && <span className="text-emerald-600">Saved</span>}
               </form>
@@ -227,7 +249,28 @@ export default function BillDetailPage() {
       )}
       <hr className="border-t border-black/10 dark:border-white/10" />
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Items</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold">Items</h2>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-600">Share view</span>
+            <div className="flex gap-2">
+              <button
+                className={shareViewMode === "cards" ? "btn-primary text-xs" : "btn text-xs"}
+                type="button"
+                onClick={() => setShareViewMode("cards")}
+              >
+                Per item
+              </button>
+              <button
+                className={shareViewMode === "table" ? "btn-primary text-xs" : "btn text-xs"}
+                type="button"
+                onClick={() => setShareViewMode("table")}
+              >
+                Table
+              </button>
+            </div>
+          </div>
+        </div>
         <hr className="border-t border-black/10 dark:border-white/10" />
         {/* Removed duplicate payer selection; payee lives in header */}
         <form onSubmit={addItem} className="flex gap-2 items-center flex-wrap">
@@ -279,93 +322,97 @@ export default function BillDetailPage() {
         <hr className="border-t border-black/10 dark:border-white/10" />
         <AddParticipants billId={billId} existingContactIds={participantContactIds} onAdded={load} />
         <hr className="border-t border-black/10 dark:border-white/10" />
-        <div className="space-y-3 max-h-[70vh] overflow-auto pr-2">
-          {items.map((it) => (
-            <div
-              key={it.id}
-              className={`space-y-2 rounded border border-black/20 dark:border-white/20 p-3 ${savedItems[it.id] ? "bg-black/[.04] dark:bg-white/[.06]" : ""}`}
-            >
-              <div className="flex justify-between items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <input
-                    className="input w-48"
-                    defaultValue={it.name}
-                    onBlur={(e) => updateItem(it.id, e.target.value, it.priceCents)}
-                  />
-                  <input
-                    className="input w-28"
-                    type="number"
-                    step="0.01"
-                    defaultValue={(it.priceCents / 100).toFixed(2)}
-                    onBlur={(e) => updateItem(it.id, it.name, Math.round(parseFloat(e.target.value || "0") * 100))}
-                  />
-                  <label className="flex items-center gap-2 text-sm">
-                    <span>Qty</span>
+        {shareViewMode === "cards" ? (
+          <div className="space-y-3 max-h-[70vh] overflow-auto pr-2">
+            {items.map((it) => (
+              <div
+                key={it.id}
+                className={`space-y-2 rounded border border-black/20 dark:border-white/20 p-3 ${savedItems[it.id] ? "bg-black/[.04] dark:bg-white/[.06]" : ""}`}
+              >
+                <div className="flex justify-between items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <input
-                      className="input w-20"
-                      type="number"
-                      min={1}
-                      defaultValue={(it as any).quantity ?? 1}
-                      onBlur={async (e) => {
-                        await fetch(`/api/bills/${billId}/items`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ itemId: it.id, quantity: Number(e.target.value) }),
-                        });
-                        await load();
-                      }}
+                      className="input w-48"
+                      defaultValue={it.name}
+                      onBlur={(e) => updateItem(it.id, e.target.value, it.priceCents)}
                     />
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" defaultChecked={(it as any).taxable ?? true} onChange={async (e) => {
-                      await fetch(`/api/bills/${billId}/items`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ itemId: it.id, taxable: e.target.checked }),
-                      });
-                      await load();
-                    }} />
-                    Taxable
-                  </label>
-                  {(it as any).taxable !== false && (
+                    <input
+                      className="input w-28"
+                      type="number"
+                      step="0.01"
+                      defaultValue={(it.priceCents / 100).toFixed(2)}
+                      onBlur={(e) => updateItem(it.id, it.name, Math.round(parseFloat(e.target.value || "0") * 100))}
+                    />
                     <label className="flex items-center gap-2 text-sm">
-                      <span>Tax %</span>
+                      <span>Qty</span>
                       <input
-                        className="input w-24"
+                        className="input w-20"
                         type="number"
-                        step="0.001"
-                        defaultValue={(it as any).taxRatePct ?? ""}
+                        min={1}
+                        defaultValue={(it as any).quantity ?? 1}
                         onBlur={async (e) => {
-                          const v = e.target.value;
                           await fetch(`/api/bills/${billId}/items`, {
                             method: "PATCH",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ itemId: it.id, taxRatePct: v === "" ? 0 : Number(v) }),
+                            body: JSON.stringify({ itemId: it.id, quantity: Number(e.target.value) }),
                           });
                           await load();
                         }}
                       />
                     </label>
-                  )}
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" defaultChecked={(it as any).taxable ?? true} onChange={async (e) => {
+                        await fetch(`/api/bills/${billId}/items`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ itemId: it.id, taxable: e.target.checked }),
+                        });
+                        await load();
+                      }} />
+                      Taxable
+                    </label>
+                    {(it as any).taxable !== false && (
+                      <label className="flex items-center gap-2 text-sm">
+                        <span>Tax %</span>
+                        <input
+                          className="input w-24"
+                          type="number"
+                          step="0.001"
+                          defaultValue={(it as any).taxRatePct ?? ""}
+                          onBlur={async (e) => {
+                            const v = e.target.value;
+                            await fetch(`/api/bills/${billId}/items`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ itemId: it.id, taxRatePct: v === "" ? 0 : Number(v) }),
+                            });
+                            await load();
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Money cents={it.priceCents} />
+                    <button className="btn" onClick={() => deleteItem(it.id)} type="button">Delete</button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Money cents={it.priceCents} />
-                  <button className="btn" onClick={() => deleteItem(it.id)} type="button">Delete</button>
+                <div className="border-t border-dashed border-black/20 dark:border-white/20 my-2" />
+                <div className="rounded border border-black/15 dark:border-white/15 p-2 bg-black/[.01] dark:bg-white/[.02]">
+                  <ItemShareEditor
+                    itemId={it.id}
+                    participants={participants}
+                    existingShares={shares.filter((s) => s.itemId === it.id)}
+                    billId={billId}
+                    onSaved={() => setSavedItems((s) => ({ ...s, [it.id]: true }))}
+                  />
                 </div>
               </div>
-              <div className="border-t border-dashed border-black/20 dark:border-white/20 my-2" />
-              <div className="rounded border border-black/15 dark:border-white/15 p-2 bg-black/[.01] dark:bg-white/[.02]">
-                <ItemShareEditor
-                  itemId={it.id}
-                  participants={participants}
-                  existingShares={shares.filter((s) => s.itemId === it.id)}
-                  billId={billId}
-                  onSaved={() => setSavedItems((s) => ({ ...s, [it.id]: true }))}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <ItemShareMatrix items={items} participants={participants} shares={shares} billId={billId} onSaved={load} />
+        )}
       </section>
       <hr className="border-t border-black/10 dark:border-white/10" />
       <div>
@@ -376,16 +423,17 @@ export default function BillDetailPage() {
         <section className="space-y-2">
           <h2 className="text-xl font-semibold">Summary</h2>
           {/* Export composition wrapper: logo + title/venue + table */}
-          <div className="space-y-3 p-4 rounded border" ref={exportRef} style={{ backgroundColor: "#ffffff", color: "#111827", borderColor: "#e5e7eb" }}>
-            <div className="flex items-center gap-3">
-              <img src="/restaurantsplit-high-resolution-logo.png" alt="Divido" className="h-8 w-8 object-contain" />
-              <div className="text-xl font-semibold" style={{ color: "#111827" }}>{bill?.title || "Bill"}</div>
-            </div>
-            <div className="text-sm" style={{ color: "#374151" }}>
-              {bill?.venue ? `${bill.venue} · ` : ""}
-              {bill?.paidByContactId ? `Payee ${participants.find((p) => p.contactId === bill.paidByContactId)?.name || ""} · ` : ""}
-              Subtotal <Money cents={calcResult.billTotals.subtotalCents} /> · Tax <Money cents={calcResult.billTotals.taxCents} /> · Tip <Money cents={calcResult.billTotals.tipCents} /> · Conv. fee <Money cents={calcResult.billTotals.convenienceFeeCents} /> · Total <Money cents={calcResult.billTotals.grandTotalCents} />
-            </div>
+          <div className="overflow-x-auto">
+            <div className="space-y-3 p-4 rounded border inline-block min-w-full" ref={exportRef} style={{ backgroundColor: "#ffffff", color: "#111827", borderColor: "#e5e7eb" }}>
+              <div className="flex items-center gap-3">
+                <img src="/restaurantsplit-high-resolution-logo.png" alt="Divido" className="h-8 w-8 object-contain" />
+                <div className="text-xl font-semibold" style={{ color: "#111827" }}>{bill?.title || "Bill"}</div>
+              </div>
+              <div className="text-sm whitespace-nowrap" style={{ color: "#374151" }}>
+                {bill?.venue ? `${bill.venue} · ` : ""}
+                {bill?.paidByContactId ? `Payee ${participants.find((p) => p.contactId === bill.paidByContactId)?.name || ""} · ` : ""}
+                Subtotal <Money cents={calcResult.billTotals.subtotalCents} /> · Tax <Money cents={calcResult.billTotals.taxCents} /> · Tip <Money cents={calcResult.billTotals.tipCents} /> · Conv. fee <Money cents={calcResult.billTotals.convenienceFeeCents} /> · Total <Money cents={calcResult.billTotals.grandTotalCents} />
+              </div>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "16px", border: "1px solid #e5e7eb" }}>
               <thead>
                 <tr style={{ backgroundColor: "#6f8bff", color: "#ffffff" }}>
@@ -464,6 +512,7 @@ export default function BillDetailPage() {
                 </tr>
               </tfoot>
             </table>
+            </div>
           </div>
           <div>
             <button className="btn" type="button" onClick={exportPNG} disabled={exporting}>{exporting ? "Exporting..." : "Export table as PNG"}</button>
