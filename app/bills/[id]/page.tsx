@@ -195,7 +195,7 @@ export default function BillDetailPage() {
             >{headerEdit ? "Done" : "Edit"}</button>
             {!headerEdit && (
               <>
-                <span>Subtotal: <Money cents={bill.subtotalCents} /> · Tax {bill.taxRatePct}% · Tip {bill.tipRatePct}% · Conv. fee {bill.convenienceFeeRatePct ?? 0}%</span>
+                <span>Subtotal: <Money cents={bill.subtotalCents} /> · Tax {bill.taxRatePct}% · Tip {bill.tipRatePct}%</span>
                 {headerSaved && <span className="text-emerald-600">Saved</span>}
               </>
             )}
@@ -207,16 +207,14 @@ export default function BillDetailPage() {
                   const sub = form.elements.namedItem("subtotal") as HTMLInputElement;
                   const tax = form.elements.namedItem("tax") as HTMLInputElement;
                   const tip = form.elements.namedItem("tip") as HTMLInputElement;
-                  const conv = form.elements.namedItem("convfee") as HTMLInputElement;
                   const parsed = parseFloat((sub.value || "0").replace(/[^0-9.\-]/g, ""));
                   const cents = Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
                   const taxNum = Number(tax.value || 0);
                   const tipNum = Number(tip.value || 0);
-                  const convNum = Number(conv.value || 0);
                   await fetch(`/api/bills/${billId}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ subtotalCents: cents, taxRatePct: taxNum, tipRatePct: tipNum, convenienceFeeRatePct: convNum }),
+                    body: JSON.stringify({ subtotalCents: cents, taxRatePct: taxNum, tipRatePct: tipNum }),
                   });
                   setHeaderSaved(true);
                   setTimeout(() => setHeaderSaved(false), 1500);
@@ -235,10 +233,6 @@ export default function BillDetailPage() {
                 <label className="flex items-center gap-1">
                   <span>Tip %</span>
                   <input name="tip" className="input w-16" defaultValue={String(bill.tipRatePct)} type="number" step="0.1" />
-                </label>
-                <label className="flex items-center gap-1">
-                  <span>Conv. fee %</span>
-                  <input name="convfee" className="input w-16" defaultValue={String(bill.convenienceFeeRatePct ?? 0)} type="number" step="0.1" />
                 </label>
                 <button className="btn text-xs" type="submit">Save</button>
                 {headerSaved && <span className="text-emerald-600">Saved</span>}
