@@ -1,33 +1,136 @@
-Divido — a Next.js app to split bills fairly.
+# RestaurantSplit - Monorepo
+
+Fair, precise bill splitting across web and iOS platforms.
+
+## Project Structure
+
+```
+RestaurantSplit/
+├── web/                    # Next.js web application
+│   ├── app/               # Next.js 15 app router pages
+│   ├── components/        # React components
+│   ├── lib/              # Utilities and business logic
+│   ├── prisma/           # Database schema and migrations
+│   └── public/           # Static assets
+│
+├── ios/                   # SwiftUI iOS application
+│   ├── RestaurantSplit/  # Main app target
+│   ├── Models/           # Swift data models
+│   ├── Views/            # SwiftUI views
+│   ├── ViewModels/       # View model layer
+│   ├── Services/         # API client and utilities
+│   └── Assets.xcassets/  # iOS assets and colors
+│
+└── packages/             # Shared code and assets
+    ├── shared/          # API contracts and models
+    └── ui-assets/       # Design tokens, colors, fonts
+```
 
 ## Getting Started
 
-Install dependencies:
+### Web Application
 
 ```bash
+cd web
 pnpm install
+pnpm dev
 ```
 
-Set up Prisma (SQLite) and seed data:
+The web app will be available at `http://localhost:3000`.
 
+For auto-opening in browser:
 ```bash
-pnpm prisma migrate dev --name init
-pnpm prisma db seed
+pnpm dev:open
 ```
 
-Run the development server:
+### iOS Application
 
+1. Open `ios/RestaurantSplit.xcodeproj` in Xcode
+2. Select a simulator or device
+3. Build and run (⌘R)
+
+**Requirements:**
+- macOS 13.0+
+- Xcode 15.0+
+- iOS 17.0+ deployment target
+
+## Architecture
+
+### Backend (Web)
+
+- **Framework**: Next.js 15 with App Router
+- **Database**: SQLite via Prisma ORM
+- **Authentication**: NextAuth.js with credentials provider
+- **API**: REST endpoints in `/api` routes
+
+### Frontend (Web)
+
+- **UI**: React 19 with Tailwind CSS 4
+- **State**: React hooks and Context
+- **Forms**: Native HTML5 validation
+- **OCR**: Tesseract.js for receipt scanning
+
+### iOS App
+
+- **UI Framework**: SwiftUI
+- **Architecture**: MVVM pattern
+- **Networking**: URLSession with Combine
+- **Storage**: Keychain for auth tokens
+- **OCR**: Vision framework
+
+## Shared Contracts
+
+Both platforms use the same:
+- API endpoint structure (see `packages/shared/README.md`)
+- Data models (TypeScript interfaces → Swift Codable structs)
+- Design system (colors, typography, spacing)
+
+## Development Workflow
+
+### Adding a New Feature
+
+1. Define API contract in `packages/shared/`
+2. Implement backend endpoint in `web/app/api/`
+3. Build web UI in `web/app/` and `web/components/`
+4. Create Swift models in `ios/Models/`
+5. Implement iOS view model and UI
+
+### Design System Updates
+
+1. Update tokens in `packages/ui-assets/README.md`
+2. Apply to web via Tailwind config
+3. Update iOS asset catalog and extensions
+
+## Testing
+
+### Web
 ```bash
-npm run dev
+cd web
+pnpm lint
+# Add test command when tests are implemented
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser.
+### iOS
+```bash
+cd ios
+xcodebuild test -scheme RestaurantSplit -destination 'platform=iOS Simulator,name=iPhone 15'
+```
 
-You can start editing the app by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deployment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Web
+- Deploy to Vercel or similar Node.js platform
+- Ensure Prisma migrations are run on deploy
 
-### Notes
+### iOS
+- Build for TestFlight via Xcode Cloud or manual upload
+- Requires Apple Developer account
 
-- API routes are under `/api/*` for contacts, bills, items, and calculation.
-- Core split algorithm is in `lib/calc.ts` and guarantees penny-accurate totals with deterministic rounding.
+## Contributing
+
+See [CONTRIBUTING.md](web/CONTRIBUTING.md) for detailed guidelines.
+
+## License
+
+Private project - All rights reserved.
+
