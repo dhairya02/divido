@@ -36,6 +36,8 @@ ios/*.xcodeproj/project.xcworkspace/xcuserdata/
 ios/*.xcworkspace/xcuserdata/
 ios/DerivedData/
 ios/build/
+ios/.build/
+ios/.swiftpm/
 ios/*.ipa
 ios/*.dSYM.zip
 ios/*.dSYM
