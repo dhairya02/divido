@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 5, "column": 0}, "map": {"version":3,"sources":["file:///Users/upadhd02/Downloads/Random/Bill_splitter/RestaurantSplit/lib/currency.ts"],"sourcesContent":["export function formatCents(amountCents: number, currency: string = \"USD\"): string {\n  const formatter = new Intl.NumberFormat(undefined, {\n    style: \"currency\",\n    currency,\n  });\n  return formatter.format(amountCents / 100);\n}\n\n\n"],"names":[],"mappings":";;;AAAO,SAAS,YAAY,WAAmB,EAAE,WAAmB,KAAK;IACvE,MAAM,YAAY,IAAI,KAAK,YAAY,CAAC,WAAW;QACjD,OAAO;QACP;IACF;IACA,OAAO,UAAU,MAAM,CAAC,cAAc;AACxC","debugId":null}},
+    {"offset": {"line": 19, "column": 0}, "map": {"version":3,"sources":["file:///Users/upadhd02/Downloads/Random/Bill_splitter/RestaurantSplit/components/Money.tsx"],"sourcesContent":["\"use client\";\nimport { formatCents } from \"@/lib/currency\";\n\nexport default function Money({ cents, currency = \"USD\" }: { cents: number; currency?: string }) {\n  return <span>{formatCents(cents, currency)}</span>;\n}\n\n\n"],"names":[],"mappings":";;;;AACA;AADA;;;AAGe,SAAS,MAAM,EAAE,KAAK,EAAE,WAAW,KAAK,EAAwC;IAC7F,qBAAO,6WAAC;kBAAM,CAAA,GAAA,+GAAA,CAAA,cAAW,AAAD,EAAE,OAAO;;;;;;AACnC","debugId":null}}]
+}
