@@ -25,6 +25,8 @@ function buildMatrix(items: Item[], participants: Participant[], shares: Share[]
   return matrix;
 }
 
+type SortOrder = "asc" | "desc" | null;
+
 export default function ItemShareMatrix({
   items,
   participants,
@@ -45,6 +47,74 @@ export default function ItemShareMatrix({
   const [hoverRow, setHoverRow] = useState<string | null>(null);
   const [hoverCol, setHoverCol] = useState<string | null>(null);
   const [focusCell, setFocusCell] = useState<{ row: string; col: string } | null>(null);
+  const [itemSortOrder, setItemSortOrder] = useState<SortOrder>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingItemName, setEditingItemName] = useState("");
+  const [savingItemName, setSavingItemName] = useState(false);
+
+  const sortedItems = useMemo(() => {
+    if (!itemSortOrder) return items;
+    return [...items].sort((a, b) => {
+      const cmp = a.name.localeCompare(b.name);
+      return itemSortOrder === "asc" ? cmp : -cmp;
+    });
+  }, [items, itemSortOrder]);
+
+  const toggleItemSort = () => {
+    setItemSortOrder((prev) => {
+      if (prev === null) return "asc";
+      if (prev === "asc") return "desc";
+      return null;
+    });
+  };
+
+  const startEditingItem = (item: Item) => {
+    setEditingItemId(item.id);
+    setEditingItemName(item.name);
+  };
+
+  const cancelEditingItem = () => {
+    setEditingItemId(null);
+    setEditingItemName("");
+  };
+
+  const saveItemName = async (itemId: string) => {
+    const trimmedName = editingItemName.trim();
+    const originalItem = items.find((i) => i.id === itemId);
+    if (!trimmedName || trimmedName === originalItem?.name) {
+      cancelEditingItem();
+      return;
+    }
+
+    setSavingItemName(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/bills/${billId}/items`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId, name: trimmedName }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({} as any));
+        throw new Error(data?.error || `Failed to update item name (${res.status})`);
+      }
+      await onSaved?.();
+      cancelEditingItem();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save item name");
+    } finally {
+      setSavingItemName(false);
+    }
+  };
+
+  const handleItemNameKeyDown = (e: React.KeyboardEvent, itemId: string) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      saveItemName(itemId);
+    } else if (e.key === "Escape") {
+      cancelEditingItem();
+    }
+  };
 
   useEffect(() => {
     setWeights(initialMatrix);
@@ -115,7 +185,20 @@ export default function ItemShareMatrix({
         <table className="w-full min-w-[600px] border text-sm">
           <thead>
             <tr className="bg-slate-100 dark:bg-slate-800">
-              <th className="border px-3 py-2 text-left sticky left-0 top-0 z-30 bg-slate-100 dark:bg-slate-800">Item</th>
+              <th
+                className="border px-3 py-2 text-left sticky left-0 top-0 z-30 bg-slate-100 dark:bg-slate-800 cursor-pointer select-none hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                onClick={toggleItemSort}
+                title="Click to sort by item name"
+              >
+                <span className="flex items-center gap-1">
+                  Item
+                  <span className="text-xs text-slate-400">
+                    {itemSortOrder === "asc" && "▲"}
+                    {itemSortOrder === "desc" && "▼"}
+                    {itemSortOrder === null && "⇅"}
+                  </span>
+                </span>
+              </th>
               <th
                 className={`border px-3 py-2 text-right sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 ${hoverCol === "__price" ? "bg-indigo-100 dark:bg-indigo-900" : ""}`}
                 onMouseEnter={() => setHoverCol("__price")}
@@ -136,7 +219,7 @@ export default function ItemShareMatrix({
             </tr>
           </thead>
           <tbody>
-            {items.map((item, idx) => {
+            {sortedItems.map((item, idx) => {
               const rowBgClass = idx % 2 === 0 ? "bg-white dark:bg-slate-900/40" : "bg-slate-50 dark:bg-slate-900/20";
               const rowHover = hoverRow === item.id;
               const priceFocused = focusCell?.row === item.id && focusCell?.col === "__price";
@@ -150,7 +233,26 @@ export default function ItemShareMatrix({
                   <td
                     className={`border px-3 py-2 text-left align-top sticky left-0 z-20 ${rowBgClass} ${rowHover ? "bg-indigo-50/70 dark:bg-indigo-900/40" : ""}`}
                   >
-                    <div className="font-medium">{item.name}</div>
+                    {editingItemId === item.id ? (
+                      <input
+                        type="text"
+                        value={editingItemName}
+                        onChange={(e) => setEditingItemName(e.target.value)}
+                        onBlur={() => saveItemName(item.id)}
+                        onKeyDown={(e) => handleItemNameKeyDown(e, item.id)}
+                        className="input w-full font-medium"
+                        autoFocus
+                        disabled={savingItemName}
+                      />
+                    ) : (
+                      <div
+                        className="font-medium cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                        onClick={() => startEditingItem(item)}
+                        title="Click to edit item name"
+                      >
+                        {item.name}
+                      </div>
+                    )}
                   </td>
                   <td
                     className={`border px-3 py-2 text-right align-top ${hoverCol === "__price" || rowHover ? "bg-indigo-50/70 dark:bg-indigo-900/40" : ""} ${priceFocused ? "ring-2 ring-indigo-500 font-semibold" : ""}`}
