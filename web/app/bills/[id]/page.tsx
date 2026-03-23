@@ -139,7 +139,7 @@ export default function BillDetailPage() {
       
       const canvas = await html2canvas(exportRef.current, { 
         backgroundColor: "#ffffff", 
-        scale: 2,
+        scale: 5,
         windowWidth: scrollWidth,
         windowHeight: scrollHeight,
         width: scrollWidth,
@@ -232,7 +232,7 @@ export default function BillDetailPage() {
                 </label>
                 <label className="flex items-center gap-1">
                   <span>Tip %</span>
-                  <input name="tip" className="input w-16" defaultValue={String(bill.tipRatePct)} type="number" step="0.1" />
+                  <input name="tip" className="input w-16" defaultValue={String(bill.tipRatePct)} type="number" step="0.01" />
                 </label>
                 <button className="btn text-xs" type="submit">Save</button>
                 {headerSaved && <span className="text-emerald-600">Saved</span>}

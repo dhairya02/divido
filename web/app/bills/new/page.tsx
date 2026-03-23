@@ -131,7 +131,7 @@ export default function NewBillPage() {
           <label className="flex flex-col gap-1">
             <span className="text-sm text-gray-400">Tip rate (%)</span>
             <div className="flex items-center gap-2">
-              <input className="input flex-1" placeholder="18" type="number" step="0.1" min="0" value={tipRatePct} onChange={(e) => setTipRatePct(Number(e.target.value))} />
+              <input className="input flex-1" placeholder="18" type="number" step="0.01" min="0" value={tipRatePct} onChange={(e) => setTipRatePct(Number(e.target.value))} />
               <span className="px-2">%</span>
             </div>
             <span className="text-xs text-gray-500">Tip percentage based on subtotal. Rounding is deterministic.</span>
