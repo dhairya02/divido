@@ -70,6 +70,15 @@ pnpm dev
 pnpm prisma migrate dev
 ```
 
+### Forgot a local dev password
+Passwords are stored as bcrypt hashes; you cannot read them from the database. Set a new password with the reset script (from `web/`, with `DATABASE_URL` in `.env` as usual):
+
+```bash
+pnpm exec tsx scripts/reset-password.ts your@email.com YourNewPassword
+```
+
+Then log in with that email and the new password.
+
 ## Available Scripts
 
 - `pnpm dev` - Start dev server with Turbopack
@@ -80,6 +89,7 @@ pnpm prisma migrate dev
 - `pnpm prisma:generate` - Generate Prisma client
 - `pnpm prisma:migrate` - Run database migrations
 - `pnpm seed` - Seed database with sample data
+- `pnpm exec tsx scripts/reset-password.ts <email> <newPassword>` - Reset a user’s password (local dev)
 
 ## Notes
 

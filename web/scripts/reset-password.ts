@@ -4,6 +4,7 @@
  * Usage: tsx scripts/reset-password.ts email@example.com newpassword
  */
 
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 
