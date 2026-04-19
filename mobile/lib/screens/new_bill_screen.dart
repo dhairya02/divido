@@ -5,6 +5,7 @@ import '../models/contact.dart';
 import '../services/local_repository.dart';
 import '../state/profile_state.dart';
 import '../utils/money.dart';
+import '../widgets/contact_picker_sheet.dart';
 import 'bill_detail_screen.dart';
 
 class NewBillScreen extends StatefulWidget {
@@ -61,6 +62,22 @@ class _NewBillScreenState extends State<NewBillScreen> {
     _tip.dispose();
     _fee.dispose();
     super.dispose();
+  }
+
+  Future<void> _openParticipantPicker() async {
+    final result = await ContactPickerSheet.pickMulti(
+      context: context,
+      allContacts: _contacts,
+      initiallySelected: _selected,
+      selfId: context.read<ProfileState>().selfContactId,
+    );
+    if (result != null && mounted) {
+      setState(() {
+        _selected
+          ..clear()
+          ..addAll(result);
+      });
+    }
   }
 
   Future<void> _create() async {
@@ -175,8 +192,20 @@ class _NewBillScreenState extends State<NewBillScreen> {
                 ],
               ),
               const SizedBox(height: 24),
-              Text('Participants',
-                  style: Theme.of(context).textTheme.titleMedium),
+              Row(
+                children: [
+                  Text('Participants',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const Spacer(),
+                  if (_selected.isNotEmpty)
+                    Text(
+                      '${_selected.length} selected',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).hintColor,
+                          ),
+                    ),
+                ],
+              ),
               const SizedBox(height: 8),
               if (_loadingContacts)
                 const Padding(
@@ -191,26 +220,15 @@ class _NewBillScreenState extends State<NewBillScreen> {
                         'Add contacts first from the Contacts tab to assign participants.'),
                   ),
                 )
-              else
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _contacts.map((c) {
-                    final selected = _selected.contains(c.id);
-                    final isSelf = c.id == selfId;
-                    return FilterChip(
-                      label: Text(isSelf ? '${c.name} (you)' : c.name),
-                      selected: selected,
-                      onSelected: (v) => setState(() {
-                        if (v) {
-                          _selected.add(c.id);
-                        } else {
-                          _selected.remove(c.id);
-                        }
-                      }),
-                    );
-                  }).toList(),
+              else ...[
+                _SelectedParticipants(
+                  contacts: _contacts,
+                  selectedIds: _selected,
+                  selfId: selfId,
+                  onRemove: (id) => setState(() => _selected.remove(id)),
+                  onAdd: _openParticipantPicker,
                 ),
+              ],
               const SizedBox(height: 32),
               FilledButton.icon(
                 onPressed: _saving ? null : _create,
@@ -224,3 +242,61 @@ class _NewBillScreenState extends State<NewBillScreen> {
     );
   }
 }
+
+class _SelectedParticipants extends StatelessWidget {
+  const _SelectedParticipants({
+    required this.contacts,
+    required this.selectedIds,
+    required this.selfId,
+    required this.onRemove,
+    required this.onAdd,
+  });
+
+  final List<Contact> contacts;
+  final Set<String> selectedIds;
+  final String? selfId;
+  final ValueChanged<String> onRemove;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final byId = {for (final c in contacts) c.id: c};
+    final selected = selectedIds
+        .map((id) => byId[id])
+        .whereType<Contact>()
+        .toList()
+      ..sort((a, b) {
+        if (a.id == selfId) return -1;
+        if (b.id == selfId) return 1;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        ...selected.map((c) {
+          final isSelf = c.id == selfId;
+          return InputChip(
+            label: Text(isSelf ? '${c.name} (you)' : c.name),
+            avatar: CircleAvatar(child: Text(_initial(c.name))),
+            onDeleted: isSelf ? null : () => onRemove(c.id),
+          );
+        }),
+        ActionChip(
+          avatar: const Icon(Icons.add, size: 18),
+          label: Text(selected.isEmpty ? 'Add participants' : 'Add more'),
+          onPressed: onAdd,
+        ),
+      ],
+    );
+  }
+
+  String _initial(String name) {
+    final t = name.trim();
+    if (t.isEmpty) return '?';
+    return t.characters.first.toUpperCase();
+  }
+}
+

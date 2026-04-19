@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/bill.dart';
-import '../models/contact.dart';
 import '../services/local_repository.dart';
+import '../state/profile_state.dart';
 import '../utils/money.dart';
+import '../widgets/contact_picker_sheet.dart';
 import '../widgets/money.dart';
 
 class BillDetailScreen extends StatefulWidget {
@@ -67,6 +68,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
 
   Future<void> _addParticipant(BillDetails details) async {
     final repo = _repo;
+    final selfId = context.read<ProfileState>().selfContactId;
     final all = await repo.listContacts();
     final usedContactIds =
         details.participants.map((p) => p.contactId).toSet();
@@ -81,27 +83,11 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
       );
       return;
     }
-    final picked = await showModalBottomSheet<Contact>(
+    final picked = await ContactPickerSheet.pickOne(
       context: context,
-      builder: (_) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Add participant',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            for (final c in available)
-              ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.person)),
-                title: Text(c.name),
-                subtitle: c.email != null ? Text(c.email!) : null,
-                onTap: () => Navigator.pop(context, c),
-              ),
-          ],
-        ),
-      ),
+      allContacts: available,
+      selfId: selfId,
+      title: 'Add participant',
     );
     if (picked == null) return;
     try {
