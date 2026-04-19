@@ -21,6 +21,10 @@ RestaurantSplit/
 │   ├── Services/         # API client and utilities
 │   └── Assets.xcassets/  # iOS assets and colors
 │
+├── mobile/                # Flutter mobile application (iOS + Android)
+│   ├── lib/              # Dart sources (screens, services, state, models)
+│   └── test/             # Unit tests including the calc-port verification
+│
 └── packages/             # Shared code and assets
     ├── shared/          # API contracts and models
     └── ui-assets/       # Design tokens, colors, fonts
@@ -43,7 +47,7 @@ For auto-opening in browser:
 pnpm dev:open
 ```
 
-### iOS Application
+### iOS Application (SwiftUI)
 
 1. Open `ios/RestaurantSplit.xcodeproj` in Xcode
 2. Select a simulator or device
@@ -53,6 +57,19 @@ pnpm dev:open
 - macOS 13.0+
 - Xcode 15.0+
 - iOS 17.0+ deployment target
+
+### Mobile Application (Flutter — iOS + Android)
+
+The mobile app is **fully offline** — it stores everything in a local SQLite
+database on the device, so it doesn't need the Next.js backend at all.
+
+```bash
+./scripts/dev.sh         # just runs `flutter run` on mobile/
+./scripts/dev.sh --web   # also boot the Next.js web app on :3000 (optional)
+```
+
+See [`mobile/README.md`](mobile/README.md) for the data model, where the
+SQLite file lives on each platform, and testing instructions.
 
 ## Architecture
 
