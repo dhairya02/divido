@@ -49,11 +49,34 @@ class _ImportContactsScreenState extends State<ImportContactsScreen> {
     final device = await svc.fetchAll();
     final existing = await repo.listContacts();
     final keys = existing.map(_localKey).toSet();
+
+    // Default to selecting every device contact that isn't already a Divido
+    // contact, so the common case ("sync everything") is one tap on Import.
+    _selected
+      ..clear()
+      ..addAll(
+        device.where((c) => !keys.contains(_deviceKey(c))).map((c) => c.id),
+      );
+
     return _LoadResult(
       permission: status,
       device: device,
       existingKeys: keys,
     );
+  }
+
+  Iterable<DeviceContact> _selectableContacts(_LoadResult data) =>
+      data.device.where((c) => !data.existingKeys.contains(_deviceKey(c)));
+
+  void _toggleSelectAll(_LoadResult data) {
+    final selectable = _selectableContacts(data).toList();
+    final allSelected = selectable.every((c) => _selected.contains(c.id));
+    setState(() {
+      _selected.clear();
+      if (!allSelected) {
+        _selected.addAll(selectable.map((c) => c.id));
+      }
+    });
   }
 
   static String _localKey(Contact c) => _key(c.name, c.phone, c.email);
@@ -70,7 +93,13 @@ class _ImportContactsScreenState extends State<ImportContactsScreen> {
   Future<void> _import(_LoadResult data) async {
     if (_selected.isEmpty) return;
     setState(() => _saving = true);
+
+    // Capture the messenger + navigator before any await so we can still post
+    // the confirmation toast after popping this route.
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     final repo = context.read<LocalRepository>();
+
     final picked =
         data.device.where((c) => _selected.contains(c.id)).toList();
     int created = 0;
@@ -80,23 +109,26 @@ class _ImportContactsScreenState extends State<ImportContactsScreen> {
         skipped++;
         continue;
       }
-      await repo.createContact(
-        name: c.displayName,
-        email: c.email,
-        phone: c.phone,
-      );
-      created++;
+      try {
+        await repo.createContact(
+          name: c.displayName,
+          email: c.email,
+          phone: c.phone,
+        );
+        created++;
+      } catch (_) {
+        skipped++;
+      }
     }
-    if (!mounted) return;
-    Navigator.of(context).pop(created); // tell caller to refresh
-    final messenger = ScaffoldMessenger.of(context);
+
     final parts = <String>[
-      if (created > 0) 'Imported $created',
+      if (created > 0) 'Imported $created contact${created == 1 ? '' : 's'}',
       if (skipped > 0) 'skipped $skipped duplicate${skipped == 1 ? '' : 's'}',
     ];
     if (parts.isNotEmpty) {
       messenger.showSnackBar(SnackBar(content: Text(parts.join(' • '))));
     }
+    navigator.pop(created);
   }
 
   @override
@@ -109,28 +141,49 @@ class _ImportContactsScreenState extends State<ImportContactsScreen> {
             future: _loadFuture,
             builder: (context, snap) {
               final data = snap.data;
+              final ready = data != null &&
+                  data.permission == DeviceContactsPermission.granted;
+              if (!ready) return const SizedBox.shrink();
+              final selectable = _selectableContacts(data).toList();
+              if (selectable.isEmpty) return const SizedBox.shrink();
+              final allSelected =
+                  selectable.every((c) => _selected.contains(c.id));
+              return TextButton(
+                onPressed: _saving ? null : () => _toggleSelectAll(data),
+                style: TextButton.styleFrom(foregroundColor: Colors.white),
+                child: Text(allSelected ? 'Select none' : 'Select all'),
+              );
+            },
+          ),
+          FutureBuilder<_LoadResult>(
+            future: _loadFuture,
+            builder: (context, snap) {
+              final data = snap.data;
               final canImport = data != null &&
                   data.permission == DeviceContactsPermission.granted &&
                   _selected.isNotEmpty &&
                   !_saving;
-              return TextButton(
-                onPressed: canImport ? () => _import(data) : null,
-                style: TextButton.styleFrom(foregroundColor: Colors.white),
-                child: _saving
-                    ? const SizedBox(
-                        height: 16,
-                        width: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
+              return Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: TextButton(
+                  onPressed: canImport ? () => _import(data) : null,
+                  style: TextButton.styleFrom(foregroundColor: Colors.white),
+                  child: _saving
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text(
+                          _selected.isEmpty
+                              ? 'Import'
+                              : 'Import (${_selected.length})',
                         ),
-                      )
-                    : Text(
-                        _selected.isEmpty
-                            ? 'Import'
-                            : 'Import (${_selected.length})',
-                      ),
+                ),
               );
             },
           ),
@@ -183,10 +236,23 @@ class _ImportContactsScreenState extends State<ImportContactsScreen> {
                       (c.phone?.toLowerCase().contains(q) ?? false);
                 }).toList();
 
+          final selectableCount = _selectableContacts(data).length;
+          final selectedCount = _selected.length;
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text(
+                  selectableCount == 0
+                      ? 'All ${data.device.length} of your contacts are already in Divido.'
+                      : '$selectedCount of $selectableCount selected — tap Import to add them all to Divido.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).hintColor,
+                      ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                 child: TextField(
                   controller: _searchCtrl,
                   onChanged: (v) => setState(() => _query = v),
