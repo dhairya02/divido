@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'screens/home_screen.dart';
 import 'screens/welcome_screen.dart';
+import 'services/device_contacts.dart';
 import 'services/local_db.dart';
 import 'services/local_repository.dart';
 import 'state/profile_state.dart';
@@ -21,6 +22,7 @@ Future<void> main() async {
       providers: [
         Provider<LocalDatabase>.value(value: local),
         Provider<LocalRepository>.value(value: repo),
+        Provider<DeviceContactsService>(create: (_) => DeviceContactsService()),
         ChangeNotifierProvider<ProfileState>.value(value: profile),
       ],
       child: const DividoApp(),

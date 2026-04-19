@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/contact.dart';
 import '../services/local_repository.dart';
 import '../state/profile_state.dart';
+import 'import_contacts_screen.dart';
 
 class ContactsScreen extends StatefulWidget {
   const ContactsScreen({super.key});
@@ -35,6 +36,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
       builder: (_) => const _ContactForm(),
     );
     if (saved == true) await _refresh();
+  }
+
+  Future<void> _importFromPhone() async {
+    final imported = await Navigator.of(context).push<int>(
+      MaterialPageRoute(builder: (_) => const ImportContactsScreen()),
+    );
+    if ((imported ?? 0) > 0 && mounted) await _refresh();
   }
 
   Future<void> _edit(Contact c) async {
@@ -91,9 +99,34 @@ class _ContactsScreenState extends State<ContactsScreen> {
       appBar: AppBar(
         title: const Text('Contacts'),
         actions: [
-          IconButton(
-              onPressed: _add,
-              icon: const Icon(Icons.person_add_alt_1_outlined)),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.person_add_alt_1_outlined),
+            tooltip: 'Add contact',
+            onSelected: (v) {
+              if (v == 'manual') _add();
+              if (v == 'phone') _importFromPhone();
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem<String>(
+                value: 'phone',
+                child: ListTile(
+                  leading: Icon(Icons.contacts_outlined),
+                  title: Text('From phone contacts'),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'manual',
+                child: ListTile(
+                  leading: Icon(Icons.edit_outlined),
+                  title: Text('Enter manually'),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       body: RefreshIndicator(

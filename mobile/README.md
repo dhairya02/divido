@@ -11,6 +11,7 @@ A fully **offline**, single-user mobile app for splitting restaurant bills. Buil
 - Add items, pick participants, assign per-item shares with a chip grid
 - One-tap split calculation using the same round-half-up logic the web app uses
 - Manage contacts (create / edit / delete) — the "you" contact is protected
+- Import people straight from your phone's address book (with permission) — duplicates are detected automatically and nothing leaves the device
 - Account screen with stats and a destructive **Reset all data** option
 - Works completely offline; no `localhost`, no LAN config, no auth screen
 
@@ -25,7 +26,8 @@ mobile/
 │   ├── models/{contact,bill}.dart     # Plain Dart data classes
 │   ├── services/
 │   │   ├── local_db.dart              # SQLite schema + opener (sqflite)
-│   │   └── local_repository.dart      # Typed CRUD + calculate over the DB
+│   │   ├── local_repository.dart      # Typed CRUD + calculate over the DB
+│   │   └── device_contacts.dart       # Wraps flutter_contacts (permission + read)
 │   ├── state/profile_state.dart       # ChangeNotifier for display name + self contact
 │   ├── utils/
 │   │   ├── calc.dart                  # Round-half-up split calculation
@@ -33,7 +35,7 @@ mobile/
 │   ├── widgets/
 │   │   ├── brand_logo.dart            # BrandMark + sticky BrandHeader
 │   │   └── money.dart
-│   └── screens/                       # Welcome, Home, BillDetail, NewBill, Contacts, Account
+│   └── screens/                       # Welcome, Home, BillDetail, NewBill, Contacts, ImportContacts, Account
 └── test/calc_test.dart                # Verifies the split calculator
 ```
 
