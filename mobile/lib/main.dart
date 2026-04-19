@@ -6,6 +6,8 @@ import 'screens/welcome_screen.dart';
 import 'services/local_db.dart';
 import 'services/local_repository.dart';
 import 'state/profile_state.dart';
+import 'theme/brand.dart';
+import 'widgets/brand_logo.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,35 +35,11 @@ class DividoApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final profile = context.watch<ProfileState>();
 
-    final lightScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF2563EB),
-      brightness: Brightness.light,
-    );
-    final darkScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF2563EB),
-      brightness: Brightness.dark,
-    );
-
-    final theme = ThemeData(
-      useMaterial3: true,
-      colorScheme: lightScheme,
-      inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(),
-      ),
-    );
-    final darkTheme = ThemeData(
-      useMaterial3: true,
-      colorScheme: darkScheme,
-      inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(),
-      ),
-    );
-
     return MaterialApp(
       title: 'Divido',
       debugShowCheckedModeBanner: false,
-      theme: theme,
-      darkTheme: darkTheme,
+      theme: buildBrandTheme(Brightness.light),
+      darkTheme: buildBrandTheme(Brightness.dark),
       home: !profile.ready
           ? const _Splash()
           : profile.displayName == null
@@ -75,6 +53,25 @@ class _Splash extends StatelessWidget {
   const _Splash();
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return Scaffold(
+      backgroundColor: BrandColors.primary,
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            BrandMark(height: 56),
+            SizedBox(height: 24),
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

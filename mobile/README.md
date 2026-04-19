@@ -18,8 +18,10 @@ A fully **offline**, single-user mobile app for splitting restaurant bills. Buil
 
 ```
 mobile/
+├── assets/images/divido-logo.png      # Shared brand logo (copied from packages/ui-assets)
 ├── lib/
 │   ├── main.dart                      # Theme, providers, onboarding gate
+│   ├── theme/brand.dart               # BrandColors + buildBrandTheme() (mirrors the website)
 │   ├── models/{contact,bill}.dart     # Plain Dart data classes
 │   ├── services/
 │   │   ├── local_db.dart              # SQLite schema + opener (sqflite)
@@ -28,10 +30,30 @@ mobile/
 │   ├── utils/
 │   │   ├── calc.dart                  # Round-half-up split calculation
 │   │   └── money.dart                 # Cents ↔ display formatting + parsing
-│   ├── widgets/money.dart
+│   ├── widgets/
+│   │   ├── brand_logo.dart            # BrandMark + sticky BrandHeader
+│   │   └── money.dart
 │   └── screens/                       # Welcome, Home, BillDetail, NewBill, Contacts, Account
 └── test/calc_test.dart                # Verifies the split calculator
 ```
+
+## Brand & design language
+
+The mobile UI uses the same tokens as the web app (single source of truth in
+[`packages/ui-assets/README.md`](../packages/ui-assets/README.md) and
+[`web/app/globals.css`](../web/app/globals.css)).
+
+| Token       | Value     | Where it's used                               |
+|-------------|-----------|-----------------------------------------------|
+| `primary`   | `#6F8BFF` | Header bar, AppBar, selected chips, focus ring|
+| `secondary` | `#C77DFF` | Primary action buttons, FAB                   |
+| `accent`    | `#E6FDA3` | "Divido" wordmark on the brand header         |
+| `muted`     | `#B794D9` | Soft accents                                  |
+
+Typography is **EB Garamond** (serif), loaded via `google_fonts`, matching the
+web body font. The shared brand logo lives at `assets/images/divido-logo.png`
+(copied from `packages/ui-assets/`) and is rendered through `BrandMark` /
+`BrandHeader` so any future logo swap is a one-line asset replacement.
 
 ### Data model (SQLite, on-device)
 

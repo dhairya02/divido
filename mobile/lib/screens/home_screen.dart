@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/bill.dart';
 import '../services/local_repository.dart';
 import '../state/profile_state.dart';
+import '../widgets/brand_logo.dart';
 import '../widgets/money.dart';
 import 'account_screen.dart';
 import 'bill_detail_screen.dart';
@@ -28,7 +29,12 @@ class _HomeScreenState extends State<HomeScreen> {
       AccountScreen(),
     ];
     return Scaffold(
-      body: SafeArea(child: pages[_index]),
+      body: Column(
+        children: [
+          const BrandHeader(),
+          Expanded(child: pages[_index]),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
