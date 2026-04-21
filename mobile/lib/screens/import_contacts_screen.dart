@@ -210,7 +210,12 @@ class _ImportContactsScreenState extends State<ImportContactsScreen> {
           if (data.permission != DeviceContactsPermission.granted) {
             return _PermissionDenied(
               status: data.permission,
-              onRetry: () => setState(() => _loadFuture = _load()),
+              onRetry: () {
+                final next = _load();
+                setState(() {
+                  _loadFuture = next;
+                });
+              },
               onOpenSettings: () =>
                   context.read<DeviceContactsService>().openSystemSettings(),
             );

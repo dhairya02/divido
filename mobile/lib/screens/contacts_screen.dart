@@ -16,6 +16,14 @@ class ContactsScreen extends StatefulWidget {
 class _ContactsScreenState extends State<ContactsScreen> {
   late Future<List<Contact>> _future;
 
+  /// IDs of contacts the user has multi-selected. When non-empty, the screen
+  /// switches into "selection mode": the app bar shows a count + bulk delete,
+  /// taps toggle selection instead of opening the editor, and a long-press
+  /// is no longer required to add more.
+  final Set<String> _selected = <String>{};
+
+  bool get _selectionMode => _selected.isNotEmpty;
+
   @override
   void initState() {
     super.initState();
@@ -25,8 +33,33 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Future<List<Contact>> _load() => context.read<LocalRepository>().listContacts();
 
   Future<void> _refresh() async {
-    setState(() => _future = _load());
-    await _future;
+    final next = _load();
+    setState(() {
+      _future = next;
+    });
+    await next;
+  }
+
+  void _toggleSelected(Contact c) {
+    final selfId = context.read<ProfileState>().selfContactId;
+    if (c.id == selfId) return; // can't bulk-delete the "self" contact
+    setState(() {
+      if (!_selected.add(c.id)) _selected.remove(c.id);
+    });
+  }
+
+  void _clearSelection() {
+    if (_selected.isEmpty) return;
+    setState(_selected.clear);
+  }
+
+  Future<void> _selectAll(List<Contact> contacts) async {
+    final selfId = context.read<ProfileState>().selfContactId;
+    setState(() {
+      _selected
+        ..clear()
+        ..addAll(contacts.where((c) => c.id != selfId).map((c) => c.id));
+    });
   }
 
   Future<void> _add() async {
@@ -55,9 +88,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Future<void> _delete(Contact c) async {
+    final messenger = ScaffoldMessenger.of(context);
     final selfId = context.read<ProfileState>().selfContactId;
     if (selfId == c.id) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Cannot delete the contact for you.')),
       );
       return;
@@ -65,15 +99,19 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final repo = context.read<LocalRepository>();
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text('Delete ${c.name}?'),
-        content: const Text('They will be removed from any future splits.'),
+        content: const Text(
+          'They will be removed from Divido and any future splits. '
+          'Your phone contacts are not affected.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton.tonal(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Delete'),
           ),
         ],
@@ -84,122 +122,282 @@ class _ContactsScreenState extends State<ContactsScreen> {
       await repo.deleteContact(c.id);
       if (!mounted) return;
       await _refresh();
+      messenger.showSnackBar(
+        SnackBar(content: Text('Deleted ${c.name} from Divido')),
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text('Could not delete: $e')),
       );
+    }
+  }
+
+  Future<void> _deleteSelected() async {
+    if (_selected.isEmpty) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final repo = context.read<LocalRepository>();
+    final ids = _selected.toList();
+    final count = ids.length;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          count == 1 ? 'Delete 1 contact?' : 'Delete $count contacts?',
+        ),
+        content: const Text(
+          'They will be removed from Divido and any future splits. '
+          'Your phone contacts are not affected.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    int deleted = 0;
+    int failed = 0;
+    for (final id in ids) {
+      try {
+        await repo.deleteContact(id);
+        deleted++;
+      } catch (_) {
+        failed++;
+      }
+    }
+    if (!mounted) return;
+    setState(_selected.clear);
+    await _refresh();
+    final parts = <String>[
+      if (deleted > 0)
+        'Deleted $deleted contact${deleted == 1 ? '' : 's'} from Divido',
+      if (failed > 0) 'could not delete $failed',
+    ];
+    if (parts.isNotEmpty) {
+      messenger.showSnackBar(SnackBar(content: Text(parts.join(' • '))));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final selfId = context.watch<ProfileState>().selfContactId;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Contacts'),
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.person_add_alt_1_outlined),
-            tooltip: 'Add contact',
-            onSelected: (v) {
-              if (v == 'manual') _add();
-              if (v == 'phone') _importFromPhone();
+    return PopScope(
+      canPop: !_selectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _selectionMode) _clearSelection();
+      },
+      child: Scaffold(
+        appBar: _selectionMode
+            ? _buildSelectionAppBar()
+            : _buildDefaultAppBar(),
+        body: RefreshIndicator(
+          onRefresh: _refresh,
+          child: FutureBuilder<List<Contact>>(
+            future: _future,
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return Center(child: Text('Error: ${snap.error}'));
+              }
+              final contacts = snap.data ?? [];
+              if (contacts.isEmpty) {
+                return ListView(
+                  children: const [
+                    SizedBox(height: 120),
+                    Icon(Icons.people_outline, size: 64),
+                    SizedBox(height: 12),
+                    Center(child: Text('No contacts yet')),
+                  ],
+                );
+              }
+              return ListView.separated(
+                itemCount: contacts.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (_, i) {
+                  final c = contacts[i];
+                  final isSelf = c.id == selfId;
+                  final isSelected = _selected.contains(c.id);
+                  return ListTile(
+                    selected: isSelected,
+                    selectedTileColor: Theme.of(context)
+                        .colorScheme
+                        .primaryContainer
+                        .withValues(alpha: 0.4),
+                    leading: GestureDetector(
+                      onTap: isSelf ? null : () => _toggleSelected(c),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 150),
+                        transitionBuilder: (child, anim) =>
+                            ScaleTransition(scale: anim, child: child),
+                        child: isSelected
+                            ? CircleAvatar(
+                                key: const ValueKey('selected'),
+                                backgroundColor:
+                                    Theme.of(context).colorScheme.primary,
+                                child: const Icon(Icons.check,
+                                    color: Colors.white, size: 20),
+                              )
+                            : CircleAvatar(
+                                key: ValueKey('avatar-${c.id}'),
+                                child: Text(_initials(c.name)),
+                              ),
+                      ),
+                    ),
+                    title: Row(
+                      children: [
+                        Flexible(child: Text(c.name)),
+                        if (isSelf) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text('You',
+                                style: Theme.of(context).textTheme.labelSmall),
+                          ),
+                        ],
+                      ],
+                    ),
+                    subtitle: Text([
+                      if (c.email != null && c.email!.isNotEmpty) c.email,
+                      if (c.phone != null && c.phone!.isNotEmpty) c.phone,
+                    ].whereType<String>().join(' • ')),
+                    trailing: _selectionMode
+                        ? null
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                  icon: const Icon(Icons.edit_outlined),
+                                  onPressed: () => _edit(c)),
+                              if (!isSelf)
+                                IconButton(
+                                    icon: const Icon(Icons.delete_outline),
+                                    onPressed: () => _delete(c)),
+                            ],
+                          ),
+                    onTap: _selectionMode
+                        ? () => _toggleSelected(c)
+                        : () => _edit(c),
+                    onLongPress:
+                        isSelf ? null : () => _toggleSelected(c),
+                  );
+                },
+              );
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem<String>(
-                value: 'phone',
-                child: ListTile(
-                  leading: Icon(Icons.contacts_outlined),
-                  title: Text('From phone contacts'),
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                ),
-              ),
-              PopupMenuItem<String>(
-                value: 'manual',
-                child: ListTile(
-                  leading: Icon(Icons.edit_outlined),
-                  title: Text('Enter manually'),
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                ),
-              ),
-            ],
           ),
-        ],
+        ),
       ),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: FutureBuilder<List<Contact>>(
+    );
+  }
+
+  AppBar _buildDefaultAppBar() {
+    return AppBar(
+      title: const Text('Contacts'),
+      actions: [
+        IconButton(
+          tooltip: 'Select',
+          icon: const Icon(Icons.checklist_outlined),
+          onPressed: () async {
+            final contacts = await _future;
+            if (!mounted || contacts.isEmpty) return;
+            final selfId = context.read<ProfileState>().selfContactId;
+            final first = contacts.firstWhere(
+              (c) => c.id != selfId,
+              orElse: () => contacts.first,
+            );
+            if (first.id != selfId) _toggleSelected(first);
+          },
+        ),
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.person_add_alt_1_outlined),
+          tooltip: 'Add contact',
+          onSelected: (v) {
+            if (v == 'manual') _add();
+            if (v == 'phone') _importFromPhone();
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem<String>(
+              value: 'phone',
+              child: ListTile(
+                leading: Icon(Icons.contacts_outlined),
+                title: Text('From phone contacts'),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'manual',
+              child: ListTile(
+                leading: Icon(Icons.edit_outlined),
+                title: Text('Enter manually'),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  AppBar _buildSelectionAppBar() {
+    return AppBar(
+      leading: IconButton(
+        tooltip: 'Cancel',
+        icon: const Icon(Icons.close),
+        onPressed: _clearSelection,
+      ),
+      title: Text('${_selected.length} selected'),
+      actions: [
+        FutureBuilder<List<Contact>>(
           future: _future,
           builder: (context, snap) {
-            if (snap.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snap.hasError) {
-              return Center(child: Text('Error: ${snap.error}'));
-            }
-            final contacts = snap.data ?? [];
-            if (contacts.isEmpty) {
-              return ListView(
-                children: const [
-                  SizedBox(height: 120),
-                  Icon(Icons.people_outline, size: 64),
-                  SizedBox(height: 12),
-                  Center(child: Text('No contacts yet')),
-                ],
-              );
-            }
-            return ListView.separated(
-              itemCount: contacts.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (_, i) {
-                final c = contacts[i];
-                final isSelf = c.id == selfId;
-                return ListTile(
-                  leading: CircleAvatar(child: Text(_initials(c.name))),
-                  title: Row(
-                    children: [
-                      Flexible(child: Text(c.name)),
-                      if (isSelf) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(context).colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text('You',
-                              style: Theme.of(context).textTheme.labelSmall),
-                        ),
-                      ],
-                    ],
-                  ),
-                  subtitle: Text([
-                    if (c.email != null && c.email!.isNotEmpty) c.email,
-                    if (c.phone != null && c.phone!.isNotEmpty) c.phone,
-                  ].whereType<String>().join(' • ')),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: () => _edit(c)),
-                      if (!isSelf)
-                        IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () => _delete(c)),
-                    ],
-                  ),
-                );
-              },
+            final contacts = snap.data ?? const <Contact>[];
+            final selfId = context.read<ProfileState>().selfContactId;
+            final selectable =
+                contacts.where((c) => c.id != selfId).toList();
+            final allSelected = selectable.isNotEmpty &&
+                selectable.every((c) => _selected.contains(c.id));
+            return IconButton(
+              tooltip: allSelected ? 'Select none' : 'Select all',
+              icon: Icon(allSelected
+                  ? Icons.deselect_outlined
+                  : Icons.select_all_outlined),
+              onPressed: contacts.isEmpty
+                  ? null
+                  : () {
+                      if (allSelected) {
+                        _clearSelection();
+                      } else {
+                        _selectAll(contacts);
+                      }
+                    },
             );
           },
         ),
-      ),
+        IconButton(
+          tooltip: 'Delete selected',
+          icon: const Icon(Icons.delete_outline),
+          onPressed: _deleteSelected,
+        ),
+      ],
     );
   }
 }

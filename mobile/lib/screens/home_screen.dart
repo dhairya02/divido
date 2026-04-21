@@ -91,8 +91,11 @@ class _BillsTabState extends State<_BillsTab> {
   Future<List<Bill>> _load() => context.read<LocalRepository>().listBills();
 
   Future<void> _refresh() async {
-    setState(() => _future = _load());
-    await _future;
+    final next = _load();
+    setState(() {
+      _future = next;
+    });
+    await next;
   }
 
   @override

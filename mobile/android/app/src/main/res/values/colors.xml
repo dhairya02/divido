@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Divido brand indigo. Keep in sync with BrandColors.primary
+         (lib/theme/brand.dart) and web/app/globals.css. -->
+    <color name="brand_primary">#FF6F8BFF</color>
+	<color name="ic_launcher_background">#6F8BFF</color>
+</resources>

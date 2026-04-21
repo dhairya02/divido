@@ -3,9 +3,11 @@ import 'package:provider/provider.dart';
 
 import '../models/contact.dart';
 import '../services/local_repository.dart';
+import '../services/receipt_scanner.dart';
 import '../state/profile_state.dart';
 import '../utils/money.dart';
 import '../widgets/contact_picker_sheet.dart';
+import '../widgets/scan_review_sheet.dart';
 import 'bill_detail_screen.dart';
 
 class NewBillScreen extends StatefulWidget {
@@ -20,14 +22,25 @@ class _NewBillScreenState extends State<NewBillScreen> {
   final _title = TextEditingController();
   final _venue = TextEditingController();
   final _subtotal = TextEditingController();
-  final _tax = TextEditingController(text: '0');
-  final _tip = TextEditingController(text: '0');
+  // Defaults reflect a typical NYC dine-out bill so the form is usable with
+  // zero edits for the most common case. Each field stays fully editable.
+  final _tax = TextEditingController(text: '8.875'); // NYC combined sales tax
+  final _tip = TextEditingController(text: '15');
   final _fee = TextEditingController(text: '0');
   bool _saving = false;
 
   List<Contact> _contacts = [];
   final Set<String> _selected = {};
   bool _loadingContacts = true;
+
+  /// Items captured from a receipt scan, waiting to be attached to the bill
+  /// once it's created. Empty when the user hasn't scanned anything yet.
+  final List<ScannedItem> _scannedItems = [];
+  bool _scanning = false;
+
+  // Lazily created so the ML Kit recognizer isn't initialized until the user
+  // actually taps "Scan receipt".
+  ReceiptScannerService? _scanner;
 
   @override
   void initState() {
@@ -61,7 +74,122 @@ class _NewBillScreenState extends State<NewBillScreen> {
     _tax.dispose();
     _tip.dispose();
     _fee.dispose();
+    _scanner?.dispose();
     super.dispose();
+  }
+
+  Future<void> _scanReceipt() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final repo = context.read<LocalRepository>();
+    final source = await showModalBottomSheet<ReceiptSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(ctx, ReceiptSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Pick from photos'),
+              onTap: () => Navigator.pop(ctx, ReceiptSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    setState(() => _scanning = true);
+    ScanOutcome? outcome;
+    try {
+      _scanner ??= ReceiptScannerService(
+        geminiApiKey: kGeminiApiKeyDartDefine.isEmpty
+            ? null
+            : kGeminiApiKeyDartDefine,
+        geminiKeyResolver: () => repo.getSetting(kGeminiApiKeySettingName),
+      );
+      outcome = await _scanner!.scan(source);
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text("Couldn't read that receipt: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
+
+    if (!mounted || outcome == null) return;
+    final result = outcome.result;
+    if (result.items.isEmpty && !result.totals.hasAny) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(outcome.fallbackReason != null
+              ? "Couldn't read this one — try a clearer photo."
+              : "No items detected — try a clearer or straighter photo of the receipt."),
+        ),
+      );
+      return;
+    }
+    final fallbackMessage = _scanFallbackMessage(outcome.engine);
+    if (outcome.fallbackReason != null && fallbackMessage != null) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(fallbackMessage)),
+      );
+    }
+
+    final reviewed =
+        await ScanReviewSheet.show(context, initial: result);
+    if (!mounted || reviewed == null) return;
+
+    setState(() {
+      _scannedItems
+        ..clear()
+        ..addAll(reviewed.items);
+
+      if (_title.text.trim().isEmpty && reviewed.merchant != null) {
+        _title.text = reviewed.merchant!;
+      }
+      if (_venue.text.trim().isEmpty && reviewed.merchant != null) {
+        _venue.text = reviewed.merchant!;
+      }
+
+      final subtotal = reviewed.totals.subtotalCents;
+      if (subtotal != null && subtotal > 0) {
+        _subtotal.text = (subtotal / 100).toStringAsFixed(2);
+      }
+    });
+
+    if (reviewed.items.isNotEmpty) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+              'Scanned ${reviewed.items.length} item${reviewed.items.length == 1 ? '' : 's'} — they\'ll be added when you create the bill.'),
+        ),
+      );
+    }
+  }
+
+  void _clearScannedItems() {
+    setState(_scannedItems.clear);
+  }
+
+  /// Snackbar copy explaining why we ended up on a non-preferred engine.
+  /// Returns `null` for the happy path (engine matched the preferred one),
+  /// so the caller knows to skip the toast entirely.
+  String? _scanFallbackMessage(ScanEngine engine) {
+    switch (engine) {
+      case ScanEngine.appleIntelligence:
+        return null;
+      case ScanEngine.gemini:
+        return 'On-device AI was unavailable, used Gemini instead.';
+      case ScanEngine.onDevice:
+        return 'AI scanners were unavailable, used basic on-device OCR.';
+    }
   }
 
   Future<void> _openParticipantPicker() async {
@@ -101,6 +229,18 @@ class _NewBillScreenState extends State<NewBillScreen> {
         convenienceFeeRatePct: double.tryParse(_fee.text.trim()) ?? 0,
         participantContactIds: _selected.toList(),
       );
+
+      // Persist scanned items right after the bill is created so the user
+      // lands on the detail screen with everything pre-populated.
+      for (final item in _scannedItems) {
+        await repo.addItem(
+          id,
+          name: item.name,
+          priceCents: item.priceCents,
+          quantity: item.quantity,
+        );
+      }
+
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => BillDetailScreen(billId: id)),
@@ -125,6 +265,13 @@ class _NewBillScreenState extends State<NewBillScreen> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              _ScanReceiptCard(
+                scanning: _scanning,
+                scannedItems: _scannedItems,
+                onScan: _scanReceipt,
+                onClear: _clearScannedItems,
+              ),
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _title,
                 decoration: const InputDecoration(labelText: 'Title'),
@@ -161,6 +308,7 @@ class _NewBillScreenState extends State<NewBillScreen> {
                           decimal: true),
                       decoration: const InputDecoration(
                         labelText: 'Tax %',
+                        helperText: 'Defaults to NYC (8.875%)',
                         suffixText: '%',
                       ),
                     ),
@@ -173,23 +321,24 @@ class _NewBillScreenState extends State<NewBillScreen> {
                           decimal: true),
                       decoration: const InputDecoration(
                         labelText: 'Tip %',
-                        suffixText: '%',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _fee,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Fee %',
+                        helperText: 'Defaults to 15%',
                         suffixText: '%',
                       ),
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _fee,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Convenience fee %',
+                  helperText:
+                      'Service / delivery fee charged on top of subtotal',
+                  suffixText: '%',
+                ),
               ),
               const SizedBox(height: 24),
               Row(
@@ -297,6 +446,98 @@ class _SelectedParticipants extends StatelessWidget {
     final t = name.trim();
     if (t.isEmpty) return '?';
     return t.characters.first.toUpperCase();
+  }
+}
+
+class _ScanReceiptCard extends StatelessWidget {
+  const _ScanReceiptCard({
+    required this.scanning,
+    required this.scannedItems,
+    required this.onScan,
+    required this.onClear,
+  });
+
+  final bool scanning;
+  final List<ScannedItem> scannedItems;
+  final VoidCallback onScan;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasItems = scannedItems.isNotEmpty;
+    final scheme = Theme.of(context).colorScheme;
+    final subtotal = scannedItems.fold<int>(
+      0,
+      (acc, it) => acc + it.priceCents * it.quantity,
+    );
+
+    return Card(
+      color: scheme.primaryContainer.withValues(alpha: 0.35),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.document_scanner_outlined,
+                    color: scheme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        hasItems
+                            ? '${scannedItems.length} item${scannedItems.length == 1 ? '' : 's'} ready • ${formatCents(subtotal)}'
+                            : 'Scan a receipt',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        hasItems
+                            ? "We'll add them automatically when you create the bill."
+                            : 'Snap a photo to auto-fill items, subtotal, and venue.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).hintColor,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (hasItems)
+                  IconButton(
+                    tooltip: 'Clear scanned items',
+                    icon: const Icon(Icons.close),
+                    onPressed: scanning ? null : onClear,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            FilledButton.tonalIcon(
+              onPressed: scanning ? null : onScan,
+              icon: scanning
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(hasItems
+                      ? Icons.refresh
+                      : Icons.camera_alt_outlined),
+              label: Text(scanning
+                  ? 'Reading receipt…'
+                  : hasItems
+                      ? 'Scan another receipt'
+                      : 'Scan receipt'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

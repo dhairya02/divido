@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 
 import '../models/bill.dart';
 import '../services/local_repository.dart';
+import '../services/receipt_scanner.dart';
 import '../state/profile_state.dart';
 import '../utils/money.dart';
 import '../widgets/contact_picker_sheet.dart';
 import '../widgets/money.dart';
+import '../widgets/scan_review_sheet.dart';
 
 class BillDetailScreen extends StatefulWidget {
   const BillDetailScreen({super.key, required this.billId});
@@ -21,11 +23,22 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
   CalcResult? _calc;
   String? _calcError;
   bool _calculating = false;
+  bool _scanning = false;
+
+  // Lazily created so the ML Kit recognizer isn't initialized until the
+  // user actually taps the scan button.
+  ReceiptScannerService? _scanner;
 
   @override
   void initState() {
     super.initState();
     _future = _load();
+  }
+
+  @override
+  void dispose() {
+    _scanner?.dispose();
+    super.dispose();
   }
 
   Future<BillDetails> _load() =>
@@ -63,6 +76,111 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not add item: $e')),
       );
+    }
+  }
+
+  Future<void> _scanItems() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final source = await showModalBottomSheet<ReceiptSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(ctx, ReceiptSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Pick from photos'),
+              onTap: () => Navigator.pop(ctx, ReceiptSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    setState(() => _scanning = true);
+    ScanOutcome? outcome;
+    try {
+      final repo = _repo;
+      _scanner ??= ReceiptScannerService(
+        geminiApiKey: kGeminiApiKeyDartDefine.isEmpty
+            ? null
+            : kGeminiApiKeyDartDefine,
+        geminiKeyResolver: () => repo.getSetting(kGeminiApiKeySettingName),
+      );
+      outcome = await _scanner!.scan(source);
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text("Couldn't read that receipt: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
+
+    if (!mounted || outcome == null) return;
+    final result = outcome.result;
+    if (result.items.isEmpty && !result.totals.hasAny) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(outcome.fallbackReason != null
+              ? "Couldn't read this one — try a clearer photo."
+              : "No items detected — try a clearer or straighter photo of the receipt."),
+        ),
+      );
+      return;
+    }
+    final fallbackMessage = _scanFallbackMessage(outcome.engine);
+    if (outcome.fallbackReason != null && fallbackMessage != null) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(fallbackMessage)),
+      );
+    }
+
+    final reviewed = await ScanReviewSheet.show(context, initial: result);
+    if (!mounted || reviewed == null || reviewed.items.isEmpty) return;
+
+    int added = 0;
+    for (final item in reviewed.items) {
+      try {
+        await _repo.addItem(
+          widget.billId,
+          name: item.name,
+          priceCents: item.priceCents,
+          quantity: item.quantity,
+        );
+        added++;
+      } catch (_) {
+        // Skip the bad row; the others still come through.
+      }
+    }
+    if (!mounted) return;
+    await _refresh();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(added == 0
+            ? "Couldn't add scanned items"
+            : 'Added $added scanned item${added == 1 ? '' : 's'}'),
+      ),
+    );
+  }
+
+  /// Snackbar copy explaining why we ended up on a non-preferred engine.
+  /// Returns `null` when nothing fell back, so the caller skips the toast.
+  String? _scanFallbackMessage(ScanEngine engine) {
+    switch (engine) {
+      case ScanEngine.appleIntelligence:
+        return null;
+      case ScanEngine.gemini:
+        return 'On-device AI was unavailable, used Gemini instead.';
+      case ScanEngine.onDevice:
+        return 'AI scanners were unavailable, used basic on-device OCR.';
     }
   }
 
@@ -237,10 +355,27 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                 const SizedBox(height: 16),
                 _Section(
                   title: 'Items',
-                  trailing: TextButton.icon(
-                    onPressed: _addItem,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton.icon(
+                        onPressed: _scanning ? null : _scanItems,
+                        icon: _scanning
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.document_scanner_outlined),
+                        label: Text(_scanning ? 'Scanning…' : 'Scan'),
+                      ),
+                      TextButton.icon(
+                        onPressed: _addItem,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add'),
+                      ),
+                    ],
                   ),
                   child: d.items.isEmpty
                       ? const _EmptyHint(
@@ -356,7 +491,9 @@ class _Header extends StatelessWidget {
                 _Pill(label: 'Tax', value: '${bill.taxRatePct}%'),
                 _Pill(label: 'Tip', value: '${bill.tipRatePct}%'),
                 if (bill.convenienceFeeRatePct > 0)
-                  _Pill(label: 'Fee', value: '${bill.convenienceFeeRatePct}%'),
+                  _Pill(
+                      label: 'Convenience fee',
+                      value: '${bill.convenienceFeeRatePct}%'),
               ],
             ),
           ],
@@ -539,7 +676,7 @@ class _CalcResultCard extends StatelessWidget {
             _row('Tax', calc.billTotals.taxCents),
             _row('Tip', calc.billTotals.tipCents),
             if (calc.billTotals.convenienceFeeCents > 0)
-              _row('Fee', calc.billTotals.convenienceFeeCents),
+              _row('Convenience fee', calc.billTotals.convenienceFeeCents),
             const Divider(),
             _row('Grand total', calc.billTotals.grandTotalCents, bold: true),
             const SizedBox(height: 16),

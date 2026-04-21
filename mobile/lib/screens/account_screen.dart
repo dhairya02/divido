@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../services/local_repository.dart';
+import '../services/receipt_scanner.dart';
 import '../state/profile_state.dart';
 
 class AccountScreen extends StatefulWidget {
@@ -14,11 +15,13 @@ class AccountScreen extends StatefulWidget {
 class _AccountScreenState extends State<AccountScreen> {
   ({int bills, int contacts})? _stats;
   bool _loading = true;
+  String? _geminiKey;
 
   @override
   void initState() {
     super.initState();
     _loadStats();
+    _loadGeminiKey();
   }
 
   Future<void> _loadStats() async {
@@ -34,6 +37,78 @@ class _AccountScreenState extends State<AccountScreen> {
       if (!mounted) return;
       setState(() => _loading = false);
     }
+  }
+
+  Future<void> _loadGeminiKey() async {
+    final key = await context
+        .read<LocalRepository>()
+        .getSetting(kGeminiApiKeySettingName);
+    if (!mounted) return;
+    setState(() => _geminiKey = key);
+  }
+
+  Future<void> _editGeminiKey() async {
+    final repo = context.read<LocalRepository>();
+    final messenger = ScaffoldMessenger.of(context);
+    final ctl = TextEditingController(text: _geminiKey ?? '');
+    final next = await showDialog<String?>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Gemini API key'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Used to scan receipts with Google Gemini. Get a free key at '
+              'aistudio.google.com/apikey. Stored only on this device.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctl,
+              autofocus: true,
+              autocorrect: false,
+              enableSuggestions: false,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'API key',
+                hintText: 'AIza...',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          if ((_geminiKey ?? '').isNotEmpty)
+            TextButton(
+              onPressed: () => Navigator.pop(context, ''),
+              child: const Text('Remove'),
+            ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, ctl.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (next == null) return;
+    if (next.isEmpty) {
+      await repo.setSetting(kGeminiApiKeySettingName, null);
+    } else {
+      await repo.setSetting(kGeminiApiKeySettingName, next);
+    }
+    if (!mounted) return;
+    setState(() => _geminiKey = next.isEmpty ? null : next);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(next.isEmpty
+            ? 'Removed Gemini key — scans will use on-device OCR.'
+            : 'Saved. Receipt scans now use Gemini.'),
+      ),
+    );
   }
 
   Future<void> _editName() async {
@@ -161,10 +236,22 @@ class _AccountScreenState extends State<AccountScreen> {
             const SizedBox(height: 24),
             const Divider(),
             ListTile(
+              leading: const Icon(Icons.auto_awesome_outlined),
+              title: const Text('Receipt scanning (Gemini)'),
+              subtitle: Text(
+                _geminiKey == null || _geminiKey!.isEmpty
+                    ? 'No key — using on-device OCR fallback. Tap to add a Google Gemini API key for sharper scans.'
+                    : 'Using Gemini ${_maskKey(_geminiKey!)} for receipt scans.',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _editGeminiKey,
+            ),
+            const Divider(),
+            ListTile(
               leading: const Icon(Icons.info_outline),
               title: const Text('About Divido'),
               subtitle: const Text(
-                  'Your data lives only on this device. No servers, no sync.'),
+                  'Your data lives on this device. Receipt photos are only sent to Google Gemini if you provide a key above.'),
             ),
             ListTile(
               leading: const Icon(Icons.delete_forever_outlined,
@@ -178,6 +265,12 @@ class _AccountScreenState extends State<AccountScreen> {
       ),
     );
   }
+}
+
+/// Returns "AIza••••••••f3h2" so the key is recognisable but mostly hidden.
+String _maskKey(String key) {
+  if (key.length <= 8) return '••••';
+  return '${key.substring(0, 4)}••••${key.substring(key.length - 4)}';
 }
 
 class _StatTile extends StatelessWidget {

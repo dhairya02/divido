@@ -64,12 +64,44 @@ class LocalRepository {
     return (await getContact(id))!;
   }
 
+  /// Removes a contact from Divido's local database only. The user's phone
+  /// address book is never touched — Divido only ever reads device contacts
+  /// (see [DeviceContactsService]) and stores its own copies in SQLite.
+  ///
+  /// We explicitly clear references in a transaction instead of relying on
+  /// `ON DELETE CASCADE`, because foreign-key enforcement isn't guaranteed
+  /// on every sqflite build and a single failed FK can leave the contact
+  /// row stranded in the table (which is what users see as "Delete doesn't
+  /// work — the contact is still there after I refresh.").
   Future<void> deleteContact(String id) async {
     final selfId = await getSelfContactId();
     if (selfId == id) {
       throw StateError('Cannot delete the contact representing you.');
     }
-    await local.db.delete('contacts', where: 'id = ?', whereArgs: [id]);
+    await local.db.transaction((txn) async {
+      // 1. Drop any item shares owned by this contact's participations.
+      await txn.rawDelete('''
+        DELETE FROM item_shares
+        WHERE participant_id IN (
+          SELECT id FROM bill_participants WHERE contact_id = ?
+        )
+      ''', [id]);
+      // 2. Remove the contact from every bill they were part of.
+      await txn.delete(
+        'bill_participants',
+        where: 'contact_id = ?',
+        whereArgs: [id],
+      );
+      // 3. Detach them from any bills they paid for.
+      await txn.update(
+        'bills',
+        {'paid_by_contact_id': null},
+        where: 'paid_by_contact_id = ?',
+        whereArgs: [id],
+      );
+      // 4. Finally drop the contact itself.
+      await txn.delete('contacts', where: 'id = ?', whereArgs: [id]);
+    });
   }
 
   // ----- Bills --------------------------------------------------------------

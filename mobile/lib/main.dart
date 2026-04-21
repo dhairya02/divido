@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'screens/home_screen.dart';
+import 'screens/splash_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'services/device_contacts.dart';
 import 'services/local_db.dart';
 import 'services/local_repository.dart';
 import 'state/profile_state.dart';
 import 'theme/brand.dart';
-import 'widgets/brand_logo.dart';
+
+/// Minimum time the branded splash stays on screen, so cold launches feel
+/// intentional instead of a one-frame flicker on fast devices.
+const _minSplashDuration = Duration(milliseconds: 1200);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,8 +34,21 @@ Future<void> main() async {
   );
 }
 
-class DividoApp extends StatelessWidget {
+class DividoApp extends StatefulWidget {
   const DividoApp({super.key});
+
+  @override
+  State<DividoApp> createState() => _DividoAppState();
+}
+
+class _DividoAppState extends State<DividoApp> {
+  late final Future<void> _splashHold;
+
+  @override
+  void initState() {
+    super.initState();
+    _splashHold = Future<void>.delayed(_minSplashDuration);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,37 +59,19 @@ class DividoApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: buildBrandTheme(Brightness.light),
       darkTheme: buildBrandTheme(Brightness.dark),
-      home: !profile.ready
-          ? const _Splash()
-          : profile.displayName == null
+      home: FutureBuilder<void>(
+        future: _splashHold,
+        builder: (context, snap) {
+          final bootstrapping = !profile.ready;
+          final stillHoldingSplash =
+              snap.connectionState != ConnectionState.done;
+          if (bootstrapping || stillHoldingSplash) {
+            return SplashScreen(showSpinner: bootstrapping);
+          }
+          return profile.displayName == null
               ? const WelcomeScreen()
-              : const HomeScreen(),
-    );
-  }
-}
-
-class _Splash extends StatelessWidget {
-  const _Splash();
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: BrandColors.primary,
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            BrandMark(height: 56),
-            SizedBox(height: 24),
-            SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-          ],
-        ),
+              : const HomeScreen();
+        },
       ),
     );
   }

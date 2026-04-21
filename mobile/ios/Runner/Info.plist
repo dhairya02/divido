@@ -61,6 +61,10 @@
 	</array>
 	<key>NSContactsUsageDescription</key>
 	<string>Divido uses your contacts so you can quickly add the people you split bills with — no contacts ever leave your device.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Divido uses the camera to scan paper receipts and auto-fill the items on a bill. Photos are processed on this device and never uploaded.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Divido reads receipt photos from your library to auto-fill the items on a bill. Photos are processed on this device and never uploaded.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
