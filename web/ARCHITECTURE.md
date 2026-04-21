@@ -1,13 +1,18 @@
-# Divido Architecture
+# Divido Web — architecture
 
-This document explains the app’s main modules and data flow.
+The Next.js app's main modules and data flow. For setup steps and scripts
+see [`README.md`](README.md); for endpoint-by-endpoint request/response
+shapes see [`../docs/public-api-reference.md`](../docs/public-api-reference.md).
 
 ## Overview
 
-- Next.js App Router for pages and API routes
-- Prisma as ORM; SQLite database for development
-- Zod for request validation
-- Tailwind for styles
+- Next.js 15 App Router for pages and API route handlers
+- Prisma ORM against SQLite (dev); the same schema is intended to work
+  against Postgres in production
+- NextAuth (credentials provider, bcrypt hashes) for sessions
+- Zod for request-body validation in every route handler
+- Tailwind CSS v4 for styles, shared brand tokens defined in
+  [`packages/ui-assets/README.md`](../packages/ui-assets/README.md)
 
 ## Data model (Prisma)
 
@@ -33,6 +38,11 @@ See `prisma/schema.prisma` for details.
 - Adjusts rounding drift deterministically by fractional parts
 - Computes tax/tip either globally or at item-level, distributing deterministically
 - Verifies penny-accurate totals: sum of owed equals subtotal + tax + tip
+
+This is the canonical implementation. The Flutter mobile app re-implements
+it verbatim in `mobile/lib/utils/calc.dart` and verifies parity in
+`mobile/test/calc_test.dart`. Any change here must land alongside the same
+change in the Dart port, with the parity test still green.
 
 ## UI
 

@@ -1,92 +1,71 @@
-# UI Assets
+# UI assets & design tokens
 
-Shared design assets and tokens used across web and iOS platforms.
+Single source of truth for colors, typography, and spacing shared between the
+[web app](../../web/) and the [Flutter mobile app](../../mobile/).
 
-## Color Palette
+This folder is **reference-only** — the actual values live in:
 
-```
-Primary: #6f8bff (indigo blue)
-Primary Accent: #E6FDA3 (lime yellow)
-Background: #ffffff (white) / #111827 (dark)
-Text: #111827 (gray-900) / #ffffff (white)
-Border: rgba(0,0,0,0.1) / rgba(255,255,255,0.1)
-```
+| Token surface     | Where it's wired up                                                                      |
+|-------------------|------------------------------------------------------------------------------------------|
+| Web CSS variables | [`web/app/globals.css`](../../web/app/globals.css) and [`web/tailwind.config.ts`](../../web/tailwind.config.ts) |
+| Mobile theme      | [`mobile/lib/theme/brand.dart`](../../mobile/lib/theme/brand.dart) (`BrandColors`, `buildBrandTheme`) |
+| Logo asset        | [`mobile/assets/images/divido-logo.png`](../../mobile/assets/images/divido-logo.png) (sourced from this folder) |
 
-### Semantic Colors
-- Success: #065f46 (emerald-800)
-- Error: #dc2626 (red-600)
-- Warning: #f59e0b (amber-500)
-- Info: #3b82f6 (blue-500)
+If a token changes, update both the web and mobile sources in the same PR
+and refresh the table below.
+
+## Color palette
+
+| Role             | Hex                              | Notes                                  |
+|------------------|----------------------------------|----------------------------------------|
+| `primary`        | `#6F8BFF`                        | Header bar, AppBar, focus ring         |
+| `secondary`      | `#C77DFF`                        | Primary action buttons, FAB            |
+| `accent`         | `#E6FDA3`                        | "Divido" wordmark on the brand header  |
+| `muted`          | `#B794D9`                        | Soft accents                           |
+| Background       | `#FFFFFF` light / `#111827` dark | App background                         |
+| Text             | `#111827` light / `#FFFFFF` dark | Body text                              |
+| Border           | `rgba(0,0,0,0.1)` / `rgba(255,255,255,0.1)` | Default border on inputs / cards |
+
+### Semantic colors
+
+| Role     | Hex       |
+|----------|-----------|
+| Success  | `#065F46` |
+| Error    | `#DC2626` |
+| Warning  | `#F59E0B` |
+| Info     | `#3B82F6` |
 
 ## Typography
 
-**Primary Font**: EB Garamond
-- Headings: 600 weight
-- Body: 400 weight
-- Display: 700 weight
+**Family**: EB Garamond (serif). Loaded via `next/font` on the web, and via
+`google_fonts` on mobile.
 
-**Font Sizes**:
-- xs: 12px
-- sm: 14px
-- base: 16px
-- lg: 18px
-- xl: 20px
-- 2xl: 24px
+| Use     | Weight |
+|---------|--------|
+| Display | 700    |
+| Heading | 600    |
+| Body    | 400    |
 
-## Spacing Scale
+Recommended sizes: `xs 12 / sm 14 / base 16 / lg 18 / xl 20 / 2xl 24` (px).
 
-- 1: 0.25rem (4px)
-- 2: 0.5rem (8px)
-- 3: 0.75rem (12px)
-- 4: 1rem (16px)
-- 6: 1.5rem (24px)
-- 8: 2rem (32px)
+## Spacing scale
 
-## Component Styles
+`1 = 0.25rem (4px)`, `2 = 0.5rem (8px)`, `3 = 0.75rem (12px)`,
+`4 = 1rem (16px)`, `6 = 1.5rem (24px)`, `8 = 2rem (32px)`. Both apps follow
+this scale; deviating requires a token update here.
 
-### Buttons
-**Primary Button** (`.btn-primary`):
-- Background: #6f8bff
-- Text: #ffffff
-- Padding: 0.5rem 1rem
-- Border radius: 0.375rem
-- Font weight: 500
+## Component conventions
 
-**Secondary Button** (`.btn`):
-- Background: transparent
-- Border: 1px solid rgba(0,0,0,0.1)
-- Padding: 0.5rem 1rem
-- Border radius: 0.375rem
+- **Buttons**: corner radius `0.375rem`, padding `0.5rem 1rem`. Primary uses
+  the `primary` color; secondary uses a `1px` border in the default border
+  color.
+- **Inputs**: same corner radius and padding; focus ring is `2px` of
+  `primary`.
+- **Cards**: corner radius `0.5rem`, default border, subtle shadow.
 
-### Inputs
-- Border: 1px solid rgba(0,0,0,0.1)
-- Padding: 0.5rem
-- Border radius: 0.375rem
-- Focus ring: 2px #6f8bff
+## Logo
 
-### Cards
-- Background: #ffffff
-- Border: 1px solid rgba(0,0,0,0.1)
-- Border radius: 0.5rem
-- Shadow: sm
-
-## Icons & Images
-
-Logo: `restaurantsplit-high-resolution-logo.png`
-- Used in header and export
-- Transparent background
-- Square aspect ratio
-
-## Platform-Specific Notes
-
-### Web
-- Uses Tailwind CSS utility classes
-- CSS variables for theming
-- Dark mode via `dark:` variants
-
-### iOS
-- Use SwiftUI Asset Catalog for colors
-- Custom `.ttf` font file for EB Garamond
-- SF Symbols where appropriate
-- Adapt corner radius to iOS standards (typically slightly larger)
-
+`divido-logo.png` — transparent background, square aspect ratio. Used for the
+header brand mark on web and the splash / launcher icons on mobile (the
+mobile app re-generates platform icons via `flutter_launcher_icons`, see
+[`mobile/pubspec.yaml`](../../mobile/pubspec.yaml)).

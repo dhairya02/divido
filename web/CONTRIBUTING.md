@@ -1,42 +1,36 @@
-# Contributing to Divido
+# Contributing to Divido (Web)
 
-This guide explains how the project is structured, how to run it locally, and our conventions for code, commits, and PRs.
+Conventions for the Next.js web app in this folder. For repo-wide setup
+(monorepo layout, the mobile app, the `dev.sh` launcher) start at the
+[root README](../README.md). For day-one setup of *just* this folder see
+[`README.md`](README.md).
 
 ## Stack summary
 
-- Next.js 15 (App Router)
-- TypeScript (strict) + ESLint
+- Next.js 15 (App Router) + TypeScript (strict) + ESLint
 - Tailwind CSS v4
 - Prisma ORM with SQLite (dev)
+- NextAuth credentials provider with bcrypt hashes
 - Zod for runtime validation
+- Tesseract.js for client-side receipt OCR (HEIC supported via `heic2any`)
 
-## Getting started
-
-1. Install pnpm and dependencies:
-   ```bash
-   pnpm install
-   ```
-2. Set up the database (SQLite):
-   ```bash
-   pnpm prisma migrate dev --name init
-   pnpm prisma db seed
-   ```
-3. Run the app:
-   ```bash
-   pnpm dev
-   ```
+Setup steps and available scripts live in [`README.md`](README.md). What
+follows is just the conventions.
 
 ## Project layout
 
-- `app/` – App Router pages and route-handlers
+- `app/` – App Router pages and route handlers
   - UI pages in feature folders (e.g. `app/bills/...`)
-  - REST endpoints in `app/api/.../route.ts`
+  - REST endpoints in `app/api/.../route.ts` (documented in
+    [`../docs/public-api-reference.md`](../docs/public-api-reference.md))
 - `components/` – small, focused UI components (client or server)
 - `lib/` – pure logic and utilities
-  - `calc.ts` – bill split algorithm (deterministic rounding)
+  - `calc.ts` – bill split algorithm (deterministic rounding); the mobile
+    app's `mobile/lib/utils/calc.dart` is a verbatim port. Keep them in sync.
   - `schemas.ts` – Zod schemas for request bodies
   - `db.ts` – Prisma client singleton
-- `prisma/` – schema and seed
+- `prisma/` – schema, migrations, and seed
+- `scripts/` – local-dev tooling (e.g. `reset-password.ts`)
 
 ## Development conventions
 
